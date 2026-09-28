@@ -1,43 +1,566 @@
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const K={people:'crm_people_v2',stores:'crm_stores_v2',acts:'crm_activity_catalog_v2',live:'crm_live_v2',hist:'crm_activity_history_v2',fu:'crm_followups_v2',team:'crm_team_v2'};
-const defaults=['GUÍA DE REMESAS','SEGUIMIENTO ACTIVACIÓN','REVISIÓN BPI','LLAMADA DE ATENCIÓN','CAPACITACIÓN','CARTA DE AMONESTACIÓN','REVISIÓN DE INCIDENCIAS','CONTACTO CON TIENDA'];
-let people=JSON.parse(localStorage.getItem(K.people)||'null')||window.INITIAL_PEOPLE||[];
-let stores=JSON.parse(localStorage.getItem(K.stores)||'null')||window.INITIAL_STORES||[];
-let activities=JSON.parse(localStorage.getItem(K.acts)||'null')||defaults;
-let live=JSON.parse(localStorage.getItem(K.live)||'[]'), history=JSON.parse(localStorage.getItem(K.hist)||'[]'), followups=JSON.parse(localStorage.getItem(K.fu)||'[]');
-let team=JSON.parse(localStorage.getItem(K.team)||'null')||['MARIELA','MAFER','JULIA','ALE'];
-let selectedAssistants=[], selectedFuPerson=null, selectedPromoter=null, chart=null;
-const save=()=>{localStorage.setItem(K.people,JSON.stringify(people));localStorage.setItem(K.stores,JSON.stringify(stores));localStorage.setItem(K.acts,JSON.stringify(activities));localStorage.setItem(K.live,JSON.stringify(live));localStorage.setItem(K.hist,JSON.stringify(history));localStorage.setItem(K.fu,JSON.stringify(followups));localStorage.setItem(K.team,JSON.stringify(team));};
-const toast=t=>{const x=$('#toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),2200)};
-const fmt=d=>new Date(d).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
-const mins=(a,b)=>Math.max(1,Math.round((new Date(b)-new Date(a))/60000));
-const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-function init(){bindTabs();refreshCatalogUI();renderAll();setInterval(()=>{$('#clock').textContent=new Date().toLocaleString('es-MX')},1000);$('#clock').textContent=new Date().toLocaleString('es-MX');}
-function bindTabs(){$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#view-'+b.dataset.view).classList.add('active');if(b.dataset.view==='estadisticas')renderStats();});}
-function refreshCatalogUI(){const owners=[...new Set(team)].sort();['#activityOwner','#fuOwner'].forEach(id=>{$(id).innerHTML=owners.map(x=>`<option>${esc(x)}</option>`).join('')});$('#activityType').innerHTML=activities.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')+'<option value="__manual">+ AGREGAR ACTIVIDAD MANUAL</option>';$('#fuType').innerHTML=['SEGUIMIENTO ACTIVACIÓN','LLAMADA DE ATENCIÓN','RETROALIMENTACIÓN','CAPACITACIÓN','CARTA DE AMONESTACIÓN','REVISIÓN','SEGUIMIENTO POSITIVO','OTRO'].map(x=>`<option>${x}</option>`).join('');let regs=[...new Set(stores.map(s=>s.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));['#activityRegion','#fuRegion'].forEach(id=>$(id).innerHTML='<option value="">Selecciona...</option>'+regs.map(r=>`<option>${esc(r)}</option>`).join(''));$('#storesList').innerHTML=stores.map(s=>`<option value="${esc(s.det+' — '+s.partner+' '+s.name+' — '+s.region)}"></option>`).join('');$('#activityCatalogChips').innerHTML=activities.map((a,i)=>`<span class="chip">${esc(a)} <button data-delact="${i}">×</button></span>`).join('');$$('[data-delact]').forEach(b=>b.onclick=()=>{activities.splice(+b.dataset.delact,1);save();refreshCatalogUI();});}
-$('#activityType').onchange=e=>$('#manualActivityWrap').classList.toggle('hidden',e.target.value!=='__manual');
-$('#activityScope').onchange=e=>{const v=e.target.value;$('#storeWrap').classList.toggle('hidden',v!=='store');$('#regionWrap').classList.toggle('hidden',v!=='region');selectedAssistants=[];renderAssistantChips();};
-function searchPeople(q,scope,store,region){q=q.trim().toUpperCase();let arr=people.filter(p=>!q||p.name.includes(q)||(p.user||'').toUpperCase().includes(q));if(scope==='store'){const d=(store.match(/^\s*([0-9]+)/)||[])[1];if(d)arr=arr.filter(p=>p.store===d)}if(scope==='region'&&region)arr=arr.filter(p=>p.region===region);return arr.sort((a,b)=>(a.status==='ACTIVO'?-1:1)-(b.status==='ACTIVO'?-1:1)||a.name.localeCompare(b.name)).slice(0,12)}
-function bindPersonSearch(input,res,callback,filterFn){input.oninput=()=>{let arr=(filterFn?filterFn(input.value):searchPeople(input.value));res.innerHTML=arr.map((p,i)=>`<div class="result" data-i="${i}"><b>${esc(p.name)}</b><small>${esc(p.status)} · ${esc(p.store||'SIN TIENDA')} · ${esc(p.region||'')}</small></div>`).join('')+(`<div class="result" data-manual="1"><b>+ Agregar manualmente “${esc(input.value||'PERSONA')}”</b><small>No está en el catálogo actual</small></div>`);res.classList.add('show');[...res.querySelectorAll('[data-i]')].forEach(el=>el.onclick=()=>{callback(arr[+el.dataset.i]);res.classList.remove('show');input.value=''});res.querySelector('[data-manual]').onclick=()=>{const n=(input.value||prompt('Nombre completo:')||'').trim().toUpperCase();if(!n)return;const p={name:n,user:'',status:'MANUAL',role:'',store:'',storeName:'',region:'',source:'MANUAL'};people.unshift(p);save();callback(p);res.classList.remove('show');input.value='';toast('Persona manual agregada');};};}
-bindPersonSearch($('#assistantSearch'),$('#assistantResults'),p=>{if(!selectedAssistants.some(x=>x.name===p.name))selectedAssistants.push(p);renderAssistantChips();},q=>searchPeople(q,$('#activityScope').value,$('#activityStore').value,$('#activityRegion').value));
-function renderAssistantChips(){$('#selectedAssistants').innerHTML=selectedAssistants.map((p,i)=>`<span class="chip">${esc(p.name)} <button data-rm="${i}">×</button></span>`).join('');$$('[data-rm]').forEach(b=>b.onclick=()=>{selectedAssistants.splice(+b.dataset.rm,1);renderAssistantChips();});}
-bindPersonSearch($('#fuPerson'),$('#fuPersonResults'),p=>{selectedFuPerson=p;$('#fuPerson').value=p.name;if(!$('#fuStore').value&&p.store){const s=stores.find(x=>x.det===p.store);$('#fuStore').value=s?`${s.det} — ${s.partner} ${s.name} — ${s.region}`:p.store;}if(p.region)$('#fuRegion').value=p.region;});
-bindPersonSearch($('#promoterSearch'),$('#promoterResults'),p=>{selectedPromoter=p;$('#promoterSearch').value=p.name;renderPromoter();});
-$('#startActivity').onclick=()=>{const owner=$('#activityOwner').value;let type=$('#activityType').value==='__manual'?$('#manualActivity').value.trim().toUpperCase():$('#activityType').value;if(!type)return toast('Escribe la actividad');if(live.some(x=>x.owner===owner))return toast(owner+' ya tiene una actividad activa');if(!activities.includes(type)){activities.push(type);refreshCatalogUI()}const scope=$('#activityScope').value;const store=$('#activityStore').value.trim(),region=$('#activityRegion').value;const rec={id:crypto.randomUUID(),owner,type,scope,store:scope==='store'?store:'',region:scope==='region'?region:'',assistants:selectedAssistants.map(p=>p.name),note:$('#activityNote').value.trim(),start:new Date().toISOString()};live.push(rec);save();selectedAssistants=[];renderAssistantChips();renderAll();toast('Actividad iniciada');};
-$('#finishMine').onclick=()=>{const owner=$('#activityOwner').value;const i=live.findIndex(x=>x.owner===owner);if(i<0)return toast('No hay actividad activa para '+owner);const rec=live.splice(i,1)[0];rec.end=new Date().toISOString();history.unshift(rec);save();renderAll();toast('Actividad finalizada');};
-function renderLive(){const c=$('#liveCards');c.innerHTML=live.map(x=>`<div class="card"><span class="badge">EN CURSO</span><h3>${esc(x.owner)}</h3><b>${esc(x.type)}</b>${x.store?`<div class="meta">🏪 ${esc(x.store)}</div>`:''}${x.region?`<div class="meta">📍 ${esc(x.region)}</div>`:''}${x.assistants.length?`<div class="meta">👥 ${x.assistants.length} asistentes</div>`:''}<div class="meta">Desde ${fmt(x.start)}</div>${x.note?`<div class="meta">📝 ${esc(x.note)}</div>`:''}</div>`).join('');$('#liveEmpty').style.display=live.length?'none':'block';}
-function renderRecent(){$('#recentActivities').innerHTML=history.slice(0,8).map(x=>`<div class="event"><div class="row"><b>${esc(x.owner)} · ${esc(x.type)}</b><small>${fmt(x.start)}</small></div><small>${x.end?mins(x.start,x.end)+' min':''} ${esc(x.store||x.region||'')}</small></div>`).join('')||'<div class="empty">Sin historial todavía.</div>';$('#recentFollowups').innerHTML=followups.slice(0,8).map(x=>`<div class="event"><div class="row"><b>${esc(x.promoter)} · ${esc(x.type)}</b><small>${fmt(x.date)}</small></div><small>${esc(x.owner)} · ${esc(x.store||x.region||'')}</small></div>`).join('')||'<div class="empty">Sin seguimientos todavía.</div>';}
-async function db(){return new Promise((ok,no)=>{const r=indexedDB.open('MesaControlCRMFiles',1);r.onupgradeneeded=()=>r.result.createObjectStore('files');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});}
-async function putFile(file){const id=crypto.randomUUID(),d=await db();return new Promise((ok,no)=>{const tx=d.transaction('files','readwrite');tx.objectStore('files').put(file,id);tx.oncomplete=()=>ok({id,name:file.name,type:file.type});tx.onerror=()=>no(tx.error)})}
-async function getFile(id){const d=await db();return new Promise((ok,no)=>{const r=d.transaction('files').objectStore('files').get(id);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
-$('#saveFollowup').onclick=async()=>{if(!selectedFuPerson)return toast('Selecciona un promotor');const files=[];for(const f of $('#fuEvidence').files)files.push(await putFile(f));const rec={id:crypto.randomUUID(),date:new Date().toISOString(),owner:$('#fuOwner').value,promoter:selectedFuPerson.name,user:selectedFuPerson.user||'',store:$('#fuStore').value.trim(),region:$('#fuRegion').value,type:$('#fuType').value,reason:$('#fuReason').value.trim(),comment:$('#fuComment').value.trim(),evidence:files};followups.unshift(rec);save();$('#fuComment').value='';$('#fuReason').value='';$('#fuEvidence').value='';renderAll();toast('Seguimiento guardado');};
-async function evidenceHTML(list,holder){holder.innerHTML='';for(const e of list||[]){const f=await getFile(e.id);if(!f)continue;const url=URL.createObjectURL(f);if((e.type||'').startsWith('image/'))holder.insertAdjacentHTML('beforeend',`<a href="${url}" target="_blank"><img src="${url}" alt="evidencia"></a>`);else holder.insertAdjacentHTML('beforeend',`<a class="file-link" href="${url}" target="_blank">📎 ${esc(e.name)}</a>`);}}
-function renderPromoter(){if(!selectedPromoter)return;const p=selectedPromoter;$('#promoterProfile').classList.remove('hidden');$('#promoterProfile').innerHTML=`<h2>${esc(p.name)}</h2><div><b>Usuario:</b> ${esc(p.user||'—')} · <b>Estatus:</b> ${esc(p.status||'—')} · <b>Tienda actual:</b> ${esc(p.store||'—')} ${esc(p.storeName||'')} · <b>Región:</b> ${esc(p.region||'—')}</div>`;const arr=followups.filter(x=>x.promoter===p.name);$('#promoterTimeline').innerHTML=arr.map(x=>`<div class="event"><div class="row"><b>${esc(x.owner)} · ${esc(x.type)}</b><small>${fmt(x.date)}</small></div><div class="meta">${esc(x.store||x.region||'')} ${x.reason?'· '+esc(x.reason):''}</div>${x.comment?`<p>${esc(x.comment)}</p>`:''}<div class="evidence" id="ev-${x.id}"></div></div>`).join('')||'<div class="empty">Este promotor todavía no tiene seguimientos.</div>';arr.forEach(x=>evidenceHTML(x.evidence,$('#ev-'+x.id)));}
-function renderStats(){const totals={};history.filter(x=>x.end).forEach(x=>totals[x.type]=(totals[x.type]||0)+mins(x.start,x.end));const labels=Object.keys(totals),data=Object.values(totals);if(chart)chart.destroy();chart=new Chart($('#activityChart'),{type:'doughnut',data:{labels,datasets:[{data}]},options:{plugins:{legend:{position:'bottom'}},maintainAspectRatio:false}});const scopes={};history.filter(x=>x.end).forEach(x=>{const k=x.store||x.region||'SIN ALCANCE';scopes[k]=(scopes[k]||0)+mins(x.start,x.end)});const max=Math.max(1,...Object.values(scopes));$('#scopeStats').innerHTML=Object.entries(scopes).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([k,v])=>`<div class="barrow"><span>${esc(k)}</span><div class="bar"><span style="width:${v/max*100}%"></span></div><b>${v} min</b></div>`).join('')||'<div class="empty">Finaliza actividades para generar estadísticas.</div>';}
-function renderAll(){renderLive();renderRecent();if(selectedPromoter)renderPromoter();}
-$('#addActivityCatalog').onclick=()=>{const v=$('#newActivityCatalog').value.trim().toUpperCase();if(v&&!activities.includes(v)){activities.push(v);save();refreshCatalogUI();$('#newActivityCatalog').value='';toast('Actividad agregada')}};
-async function readWorkbook(file){const buf=await file.arrayBuffer();return XLSX.read(buf,{type:'array'});}
-function rowObjects(ws){return XLSX.utils.sheet_to_json(ws,{defval:''});}
-$('#loadAttendance').onclick=async()=>{const f=$('#attendanceFile').files[0];if(!f)return toast('Selecciona un archivo');try{const wb=await readWorkbook(f);const ws=wb.Sheets[wb.SheetNames[0]];const rows=rowObjects(ws);const norm=k=>String(k).trim().replace(/\s+/g,' ').toUpperCase();const next=[];rows.forEach(r=>{const map={};Object.keys(r).forEach(k=>map[norm(k)]=r[k]);const name=String(map['NOMBRE COMPLETO']||'').trim();if(!name)return;next.push({name:name.toUpperCase(),user:String(map['USUARIO']||'').trim(),status:String(map['ESTATUS']||'').trim().toUpperCase(),role:String(map['PERFIL DE PUESTO BANCO']||map['PERFIL DE PUESTO\nBANCO']||'').trim().toUpperCase(),store:String(map['DETERMINANTE']||'').replace(/\.0$/,''),storeName:String(map['NOMBRE DE LA TIENDA']||'').trim().toUpperCase(),region:String(map['REGION']||'').trim().toUpperCase(),source:'ASISTENCIA'});});if(!next.length)throw Error('No se encontró NOMBRE COMPLETO');const manual=people.filter(p=>p.source==='MANUAL'&&!next.some(n=>n.name===p.name));people=[...next,...manual];save();$('#attendanceStatus').textContent=`${next.length} personas cargadas · ${new Date().toLocaleString('es-MX')}`;toast('ASISTENCIA actualizada');}catch(e){toast('No pude leer ASISTENCIA: '+e.message)}};
-$('#loadStores').onclick=async()=>{const f=$('#storesFile').files[0];if(!f)return toast('Selecciona un archivo');try{const wb=await readWorkbook(f);const ws=wb.Sheets[wb.SheetNames.find(n=>n.toUpperCase().includes('BASE DE TIENDAS INVEX'))||wb.SheetNames[0]];const rows=rowObjects(ws),next=[];rows.forEach(r=>{const keys=Object.fromEntries(Object.keys(r).map(k=>[k.trim().toUpperCase(),r[k]]));const det=String(keys['NUMERO DE TIENDA/DETERMINANTE']||keys['DETERMINANTE']||'').replace(/\.0$/,'').trim();if(!det)return;next.push({det,name:String(keys['TIENDA']||'').trim().toUpperCase(),partner:String(keys['SOCIO']||'').trim().toUpperCase(),region:String(keys['REGION']||'').trim().toUpperCase(),state:String(keys['ESTADO']||'').trim().toUpperCase(),city:String(keys['CIUDAD']||'').trim().toUpperCase(),status:String(keys['ESTATUS']||'').trim().toUpperCase()});});if(!next.length)throw Error('No se encontraron tiendas');stores=next;save();refreshCatalogUI();$('#storesStatus').textContent=`${next.length} tiendas cargadas · ${new Date().toLocaleString('es-MX')}`;toast('BASE DE TIENDAS actualizada');}catch(e){toast('No pude leer tiendas: '+e.message)}};
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const cfg = window.CRM_CONFIG || {};
+const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true }
+});
+
+let currentUser = null;
+let currentAnalyst = null;
+let people = [];
+let stores = [];
+let activityTypes = [];
+let followupTypes = [];
+let selectedAssistants = [];
+let selectedFuPerson = null;
+let selectedPromoter = null;
+let chart = null;
+let realtimeChannel = null;
+
+const toast = (t) => {
+  const x = $('#toast');
+  if (!x) return;
+  x.textContent = t;
+  x.classList.add('show');
+  setTimeout(() => x.classList.remove('show'), 2400);
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const fmt = (d) => d ? new Date(d).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '';
+const mins = (a,b) => Math.max(1, Math.round((new Date(b)-new Date(a))/60000));
+const normalize = (s) => String(s ?? '').trim().toUpperCase();
+const detFromText = (v) => ((String(v||'').match(/^\s*([0-9]+)/)||[])[1] || '').replace(/^0+(?=\d)/,'');
+const personKey = (p) => {
+  const user = normalize(p.user || p.usuario_fico);
+  const name = normalize(p.name || p.nombre_completo);
+  const det = String(p.store || p.determinante || '').replace(/\.0$/,'').trim();
+  if (user && user !== 'PENDIENTE') return `FICO:${user}`;
+  return `NOMBRE:${name}|DET:${det || 'SIN_TIENDA'}`;
+};
+
+function setBusy(btn, busy, text='Procesando...') {
+  if (!btn) return;
+  if (busy) {
+    btn.dataset.original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = text;
+  } else {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.original || btn.textContent;
+  }
+}
+
+async function init() {
+  bindTabs();
+  bindStaticEvents();
+  $('#clock').textContent = new Date().toLocaleString('es-MX');
+  setInterval(() => $('#clock').textContent = new Date().toLocaleString('es-MX'), 1000);
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    await enterApp(session.user);
+  } else {
+    showLogin();
+  }
+
+  sb.auth.onAuthStateChange(async (_event, session2) => {
+    if (session2?.user && (!currentUser || currentUser.id !== session2.user.id)) {
+      await enterApp(session2.user);
+    }
+    if (!session2?.user) {
+      showLogin();
+    }
+  });
+}
+
+function showLogin() {
+  currentUser = null;
+  currentAnalyst = null;
+  $('#loginScreen').classList.remove('hidden');
+  $('#appShell').classList.add('hidden');
+}
+
+async function enterApp(user) {
+  currentUser = user;
+  const { data, error } = await sb.from('analistas').select('*').eq('user_id', user.id).maybeSingle();
+  if (error) {
+    $('#loginError').textContent = 'No pude leer tu perfil: ' + error.message;
+    return;
+  }
+  if (!data) {
+    $('#loginError').textContent = 'Tu cuenta existe, pero todavía no está vinculada a la tabla ANALISTAS.';
+    await sb.auth.signOut();
+    return;
+  }
+  currentAnalyst = data;
+  $('#loginScreen').classList.add('hidden');
+  $('#appShell').classList.remove('hidden');
+  $('#whoAmI').textContent = `👤 ${currentAnalyst.nombre}`;
+  $('#activityOwner').value = currentAnalyst.nombre;
+  $('#fuOwner').value = currentAnalyst.nombre;
+  await loadCatalogs();
+  await renderAll();
+  subscribeRealtime();
+}
+
+function bindTabs() {
+  $$('.tab').forEach(b => b.onclick = async () => {
+    $$('.tab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    $$('.view').forEach(v => v.classList.remove('active'));
+    $('#view-' + b.dataset.view).classList.add('active');
+    if (b.dataset.view === 'estadisticas') await renderStats();
+  });
+}
+
+function bindStaticEvents() {
+  $('#loginBtn').onclick = login;
+  $('#loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+  $('#logoutBtn').onclick = async () => { await sb.auth.signOut(); if (realtimeChannel) sb.removeChannel(realtimeChannel); };
+
+  $('#activityType').onchange = e => $('#manualActivityWrap').classList.toggle('hidden', e.target.value !== '__manual');
+  $('#activityScope').onchange = e => {
+    const v = e.target.value;
+    $('#storeWrap').classList.toggle('hidden', v !== 'TIENDA');
+    $('#regionWrap').classList.toggle('hidden', v !== 'REGION');
+    selectedAssistants = [];
+    renderAssistantChips();
+  };
+
+  bindPersonSearch($('#assistantSearch'), $('#assistantResults'), p => {
+    if (!selectedAssistants.some(x => x.id === p.id)) selectedAssistants.push(p);
+    renderAssistantChips();
+  }, q => searchPeople(q, $('#activityScope').value, $('#activityStore').value, $('#activityRegion').value));
+
+  bindPersonSearch($('#fuPerson'), $('#fuPersonResults'), p => {
+    selectedFuPerson = p;
+    $('#fuPerson').value = p.nombre_completo;
+    if (!$('#fuStore').value && p.determinante) {
+      const s = stores.find(x => x.determinante === p.determinante);
+      $('#fuStore').value = s ? storeLabel(s) : p.determinante;
+    }
+    if (p.region) $('#fuRegion').value = p.region;
+  });
+
+  bindPersonSearch($('#promoterSearch'), $('#promoterResults'), async p => {
+    selectedPromoter = p;
+    $('#promoterSearch').value = p.nombre_completo;
+    await renderPromoter();
+  });
+
+  $('#startActivity').onclick = startActivity;
+  $('#finishMine').onclick = finishMine;
+  $('#saveFollowup').onclick = saveFollowup;
+  $('#loadAttendance').onclick = uploadAttendance;
+  $('#loadStores').onclick = uploadStores;
+  $('#addActivityCatalog').onclick = addActivityCatalog;
+}
+
+async function login() {
+  const btn = $('#loginBtn');
+  const email = $('#loginEmail').value.trim();
+  const password = $('#loginPassword').value;
+  $('#loginError').textContent = '';
+  if (!email || !password) return $('#loginError').textContent = 'Escribe correo y contraseña.';
+  setBusy(btn, true, 'Entrando...');
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  setBusy(btn, false);
+  if (error) $('#loginError').textContent = error.message;
+}
+
+async function loadCatalogs() {
+  const [pRes, sRes, aRes, fRes] = await Promise.all([
+    sb.from('personas').select('*').order('nombre_completo'),
+    sb.from('tiendas').select('*').order('determinante'),
+    sb.from('tipos_actividad').select('*').eq('activo', true).order('nombre'),
+    sb.from('tipos_seguimiento').select('*').eq('activo', true).order('nombre')
+  ]);
+  if (pRes.error) toast('Personas: ' + pRes.error.message);
+  if (sRes.error) toast('Tiendas: ' + sRes.error.message);
+  people = pRes.data || [];
+  stores = sRes.data || [];
+  activityTypes = aRes.data || [];
+  followupTypes = fRes.data || [];
+  refreshCatalogUI();
+}
+
+function storeLabel(s) {
+  return `${s.determinante} — ${s.socio ? s.socio + ' ' : ''}${s.nombre_tienda || ''}${s.region ? ' — ' + s.region : ''}`;
+}
+
+function refreshCatalogUI() {
+  $('#activityType').innerHTML = activityTypes.map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('') + '<option value="__manual">+ AGREGAR ACTIVIDAD MANUAL</option>';
+  $('#fuType').innerHTML = followupTypes.map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('');
+
+  const regs = [...new Set(stores.map(s => s.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  ['#activityRegion','#fuRegion'].forEach(id => {
+    $(id).innerHTML = '<option value="">Selecciona...</option>' + regs.map(r => `<option>${esc(r)}</option>`).join('');
+  });
+  $('#storesList').innerHTML = stores.map(s => `<option value="${esc(storeLabel(s))}"></option>`).join('');
+  $('#activityCatalogChips').innerHTML = activityTypes.map(a => `<span class="chip">${esc(a.nombre)}</span>`).join('');
+}
+
+function searchPeople(q, scope='GENERAL', store='', region='') {
+  q = normalize(q);
+  let arr = people.filter(p => !q || normalize(p.nombre_completo).includes(q) || normalize(p.usuario_fico).includes(q));
+  if (scope === 'TIENDA') {
+    const d = detFromText(store);
+    if (d) arr = arr.filter(p => String(p.determinante||'') === d);
+  }
+  if (scope === 'REGION' && region) arr = arr.filter(p => p.region === region);
+  return arr.sort((a,b) => ((b.activo?1:0)-(a.activo?1:0)) || normalize(a.nombre_completo).localeCompare(normalize(b.nombre_completo))).slice(0,15);
+}
+
+function bindPersonSearch(input, res, callback, filterFn) {
+  input.oninput = () => {
+    const arr = filterFn ? filterFn(input.value) : searchPeople(input.value);
+    const manualLabel = input.value.trim() ? esc(input.value.trim().toUpperCase()) : 'PERSONA';
+    res.innerHTML = arr.map((p,i) => `<div class="result" data-i="${i}"><b>${esc(p.nombre_completo)}</b><small>${esc(p.estatus||'')} · ${esc(p.determinante||'SIN TIENDA')} · ${esc(p.region||'')}</small></div>`).join('') +
+      `<div class="result" data-manual="1"><b>+ Agregar manualmente “${manualLabel}”</b><small>No está en el catálogo actual</small></div>`;
+    res.classList.add('show');
+    [...res.querySelectorAll('[data-i]')].forEach(el => el.onclick = () => {
+      callback(arr[+el.dataset.i]);
+      res.classList.remove('show');
+      if (input !== $('#fuPerson') && input !== $('#promoterSearch')) input.value = '';
+    });
+    const m = res.querySelector('[data-manual]');
+    if (m) m.onclick = async () => {
+      const n = normalize(input.value || prompt('Nombre completo:') || '');
+      if (!n) return;
+      const p = await createManualPerson(n);
+      if (!p) return;
+      callback(p);
+      res.classList.remove('show');
+      if (input !== $('#fuPerson') && input !== $('#promoterSearch')) input.value = '';
+    };
+  };
+  input.onfocus = () => { if (input.value) input.oninput(); };
+}
+
+async function createManualPerson(name) {
+  const det = detFromText($('#activityStore')?.value || $('#fuStore')?.value || '');
+  const region = $('#activityRegion')?.value || $('#fuRegion')?.value || '';
+  const payload = {
+    clave: personKey({ name, store: det }),
+    nombre_completo: name,
+    usuario_fico: null,
+    perfil: 'MANUAL',
+    estatus: 'MANUAL',
+    determinante: det || null,
+    region: region || null,
+    origen: 'MANUAL',
+    activo: true
+  };
+  const { data, error } = await sb.from('personas').upsert(payload, { onConflict: 'clave' }).select().single();
+  if (error) { toast('No pude agregar persona: ' + error.message); return null; }
+  const idx = people.findIndex(x => x.id === data.id);
+  if (idx >= 0) people[idx] = data; else people.unshift(data);
+  toast('Persona manual agregada');
+  return data;
+}
+
+function renderAssistantChips() {
+  $('#selectedAssistants').innerHTML = selectedAssistants.map((p,i) => `<span class="chip">${esc(p.nombre_completo)} <button data-rm="${i}">×</button></span>`).join('');
+  $$('[data-rm]').forEach(b => b.onclick = () => { selectedAssistants.splice(+b.dataset.rm,1); renderAssistantChips(); });
+}
+
+async function startActivity() {
+  const btn = $('#startActivity');
+  const typeVal = $('#activityType').value;
+  let typeId = typeVal;
+  let manual = null;
+
+  if (typeVal === '__manual') {
+    const name = normalize($('#manualActivity').value);
+    if (!name) return toast('Escribe la actividad manual');
+    const { data, error } = await sb.from('tipos_actividad').upsert({ nombre: name, activo: true }, { onConflict: 'nombre' }).select().single();
+    if (error) return toast('No pude crear actividad: ' + error.message);
+    typeId = data.id;
+    manual = name;
+    if (!activityTypes.some(x => x.id === data.id)) activityTypes.push(data);
+    refreshCatalogUI();
+  }
+
+  const scope = $('#activityScope').value;
+  const det = scope === 'TIENDA' ? detFromText($('#activityStore').value) : null;
+  const region = scope === 'REGION' ? $('#activityRegion').value : null;
+  if (scope === 'TIENDA' && !det) return toast('Selecciona una tienda válida');
+  if (scope === 'REGION' && !region) return toast('Selecciona una región');
+
+  setBusy(btn, true, 'Iniciando...');
+  const existing = await sb.from('actividades').select('id').eq('analista_id', currentAnalyst.id).eq('estatus','EN_CURSO').limit(1);
+  if (existing.data?.length) { setBusy(btn,false); return toast('Ya tienes una actividad activa'); }
+
+  const payload = {
+    analista_id: currentAnalyst.id,
+    tipo_actividad_id: typeId,
+    actividad_manual: manual,
+    alcance: scope,
+    determinante: det || null,
+    region: region || null,
+    notas: $('#activityNote').value.trim() || null,
+    estatus: 'EN_CURSO',
+    inicio: new Date().toISOString()
+  };
+  const { data, error } = await sb.from('actividades').insert(payload).select().single();
+  if (error) { setBusy(btn,false); return toast('No pude iniciar: ' + error.message); }
+
+  if (selectedAssistants.length) {
+    const rows = selectedAssistants.map(p => ({ actividad_id: data.id, persona_id: p.id }));
+    const r = await sb.from('actividad_asistentes').insert(rows);
+    if (r.error) toast('Actividad creada, pero faltaron asistentes: ' + r.error.message);
+  }
+
+  selectedAssistants = [];
+  renderAssistantChips();
+  $('#activityNote').value = '';
+  $('#manualActivity').value = '';
+  setBusy(btn,false);
+  toast('Actividad iniciada');
+  await renderAll();
+}
+
+async function finishMine() {
+  const btn = $('#finishMine');
+  setBusy(btn,true,'Finalizando...');
+  const { data: act, error } = await sb.from('actividades').select('id').eq('analista_id', currentAnalyst.id).eq('estatus','EN_CURSO').order('inicio',{ascending:false}).limit(1).maybeSingle();
+  if (error) { setBusy(btn,false); return toast(error.message); }
+  if (!act) { setBusy(btn,false); return toast('No tienes una actividad activa'); }
+  const r = await sb.from('actividades').update({ estatus:'FINALIZADA', fin:new Date().toISOString() }).eq('id', act.id);
+  setBusy(btn,false);
+  if (r.error) return toast('No pude finalizar: ' + r.error.message);
+  toast('Actividad finalizada');
+  await renderAll();
+}
+
+async function renderAll() {
+  await Promise.all([renderLive(), renderRecentActivities(), renderRecentFollowups()]);
+}
+
+async function renderLive() {
+  const { data, error } = await sb.from('actividades')
+    .select('id,inicio,notas,alcance,region,determinante,actividad_manual,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda,socio),actividad_asistentes(personas(nombre_completo))')
+    .eq('estatus','EN_CURSO').order('inicio',{ascending:false});
+  if (error) return toast('En vivo: ' + error.message);
+  const c = $('#liveCards');
+  c.innerHTML = (data||[]).map(x => {
+    const attendees = (x.actividad_asistentes||[]).map(a=>a.personas?.nombre_completo).filter(Boolean);
+    const type = x.tipos_actividad?.nombre || x.actividad_manual || 'ACTIVIDAD';
+    const place = x.determinante ? `🏪 ${esc(x.determinante)}${x.tiendas?.nombre_tienda ? ' — '+esc(x.tiendas.nombre_tienda):''}` : (x.region ? `📍 ${esc(x.region)}` : '');
+    return `<div class="card"><span class="badge">EN CURSO</span><h3>${esc(x.analistas?.nombre||'')}</h3><b>${esc(type)}</b>${place?`<div class="meta">${place}</div>`:''}${attendees.length?`<div class="meta">👥 ${attendees.length} asistentes</div>`:''}<div class="meta">Desde ${fmt(x.inicio)}</div>${x.notas?`<div class="meta">📝 ${esc(x.notas)}</div>`:''}</div>`;
+  }).join('');
+  $('#liveEmpty').style.display = data?.length ? 'none' : 'block';
+}
+
+async function renderRecentActivities() {
+  const { data, error } = await sb.from('actividades')
+    .select('inicio,fin,region,determinante,actividad_manual,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
+    .eq('estatus','FINALIZADA').order('fin',{ascending:false}).limit(10);
+  if (error) return;
+  $('#recentActivities').innerHTML = (data||[]).map(x => `<div class="event"><div class="row"><b>${esc(x.analistas?.nombre)} · ${esc(x.tipos_actividad?.nombre||x.actividad_manual||'ACTIVIDAD')}</b><small>${fmt(x.inicio)}</small></div><small>${x.fin?mins(x.inicio,x.fin)+' min · ':''}${esc(x.determinante||x.region||'GENERAL')}</small></div>`).join('') || '<div class="empty">Sin historial todavía.</div>';
+}
+
+async function renderRecentFollowups() {
+  const { data, error } = await sb.from('seguimientos')
+    .select('id,fecha,determinante,region,motivo,analistas(nombre),tipos_seguimiento(nombre),seguimiento_personas(personas(nombre_completo))')
+    .order('fecha',{ascending:false}).limit(10);
+  if (error) return;
+  $('#recentFollowups').innerHTML = (data||[]).map(x => {
+    const names=(x.seguimiento_personas||[]).map(p=>p.personas?.nombre_completo).filter(Boolean).join(', ');
+    return `<div class="event"><div class="row"><b>${esc(names||'Promotor')} · ${esc(x.tipos_seguimiento?.nombre||'SEGUIMIENTO')}</b><small>${fmt(x.fecha)}</small></div><small>${esc(x.analistas?.nombre)} · ${esc(x.determinante||x.region||'')}</small></div>`;
+  }).join('') || '<div class="empty">Sin seguimientos todavía.</div>';
+}
+
+async function saveFollowup() {
+  if (!selectedFuPerson) return toast('Selecciona un promotor');
+  const btn = $('#saveFollowup');
+  setBusy(btn,true,'Guardando...');
+  const det = detFromText($('#fuStore').value) || selectedFuPerson.determinante || null;
+  const region = $('#fuRegion').value || selectedFuPerson.region || null;
+  const payload = {
+    analista_id: currentAnalyst.id,
+    tipo_seguimiento_id: $('#fuType').value || null,
+    determinante: det || null,
+    region: region || null,
+    motivo: $('#fuReason').value.trim() || null,
+    comentario: $('#fuComment').value.trim() || null,
+    fecha: new Date().toISOString()
+  };
+  const { data: seg, error } = await sb.from('seguimientos').insert(payload).select().single();
+  if (error) { setBusy(btn,false); return toast('No pude guardar: ' + error.message); }
+
+  const link = await sb.from('seguimiento_personas').insert({ seguimiento_id: seg.id, persona_id: selectedFuPerson.id });
+  if (link.error) toast('Seguimiento creado, pero falló vínculo de promotor');
+
+  const files = [...$('#fuEvidence').files];
+  for (const file of files) {
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    const path = `${seg.id}/${crypto.randomUUID()}-${safe}`;
+    const up = await sb.storage.from('evidencias').upload(path, file, { upsert:false, contentType:file.type || undefined });
+    if (up.error) { toast('No pude subir ' + file.name); continue; }
+    await sb.from('evidencias').insert({ seguimiento_id: seg.id, nombre_archivo:file.name, ruta_archivo:path, tipo_archivo:file.type || null });
+  }
+
+  setBusy(btn,false);
+  toast('Seguimiento guardado');
+  $('#fuReason').value=''; $('#fuComment').value=''; $('#fuEvidence').value=''; $('#fuPerson').value='';
+  selectedFuPerson = null;
+  await renderAll();
+  if (selectedPromoter) await renderPromoter();
+}
+
+async function renderPromoter() {
+  if (!selectedPromoter) return;
+  const p = selectedPromoter;
+  const profile = $('#promoterProfile');
+  profile.classList.remove('hidden');
+  profile.innerHTML = `<h2>${esc(p.nombre_completo)}</h2><div><b>Usuario FICO:</b> ${esc(p.usuario_fico||'SIN DATO')}</div><div><b>Estatus actual:</b> ${esc(p.estatus||'')}</div><div><b>Tienda actual:</b> ${esc(p.determinante||'SIN TIENDA')}</div><div><b>Región:</b> ${esc(p.region||'')}</div><div><b>Origen:</b> ${esc(p.origen||'')}</div>`;
+
+  const { data, error } = await sb.from('seguimiento_personas')
+    .select('seguimientos(id,fecha,determinante,region,motivo,comentario,analistas(nombre),tipos_seguimiento(nombre),evidencias(id,nombre_archivo,ruta_archivo,tipo_archivo))')
+    .eq('persona_id', p.id);
+  if (error) return toast('No pude cargar historial: ' + error.message);
+  const rows = (data||[]).map(x=>x.seguimientos).filter(Boolean).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+  const html = [];
+  for (const x of rows) {
+    const ev = [];
+    for (const f of (x.evidencias||[])) {
+      const signed = await sb.storage.from('evidencias').createSignedUrl(f.ruta_archivo, 3600);
+      const url = signed.data?.signedUrl || '#';
+      if ((f.tipo_archivo||'').startsWith('image/')) ev.push(`<a href="${esc(url)}" target="_blank"><img src="${esc(url)}" alt="${esc(f.nombre_archivo)}"></a>`);
+      else ev.push(`<a class="file-link" href="${esc(url)}" target="_blank">📎 ${esc(f.nombre_archivo)}</a>`);
+    }
+    html.push(`<div class="event"><div class="row"><b>${esc(x.analistas?.nombre)} · ${esc(x.tipos_seguimiento?.nombre||'SEGUIMIENTO')}</b><small>${fmt(x.fecha)}</small></div><div class="meta">${x.determinante?`🏪 ${esc(x.determinante)}`:''}${x.region?` · 📍 ${esc(x.region)}`:''}</div>${x.motivo?`<p><b>Motivo:</b> ${esc(x.motivo)}</p>`:''}${x.comentario?`<p>${esc(x.comentario)}</p>`:''}${ev.length?`<div class="evidence">${ev.join('')}</div>`:''}</div>`);
+  }
+  $('#promoterTimeline').innerHTML = html.join('') || '<div class="empty">Este promotor todavía no tiene seguimientos.</div>';
+}
+
+async function renderStats() {
+  const { data, error } = await sb.from('actividades')
+    .select('inicio,fin,determinante,region,actividad_manual,tipos_actividad(nombre)')
+    .eq('estatus','FINALIZADA').not('fin','is',null).order('fin',{ascending:false}).limit(3000);
+  if (error) return toast('Estadísticas: ' + error.message);
+  const byAct = {}, byScope = {};
+  for (const x of (data||[])) {
+    const m = mins(x.inicio,x.fin);
+    const name = x.tipos_actividad?.nombre || x.actividad_manual || 'OTRA';
+    byAct[name] = (byAct[name]||0)+m;
+    const scope = x.determinante ? `Tienda ${x.determinante}` : (x.region || 'General');
+    byScope[scope] = (byScope[scope]||0)+m;
+  }
+  const labels = Object.keys(byAct).sort((a,b)=>byAct[b]-byAct[a]);
+  const values = labels.map(x=>byAct[x]);
+  if (chart) chart.destroy();
+  chart = new Chart($('#activityChart'), { type:'pie', data:{ labels, datasets:[{ data:values }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{tooltip:{callbacks:{label:(ctx)=>`${ctx.label}: ${(ctx.raw/60).toFixed(1)} h`}}} } });
+  const top = Object.entries(byScope).sort((a,b)=>b[1]-a[1]).slice(0,20);
+  const max = top[0]?.[1] || 1;
+  $('#scopeStats').innerHTML = top.map(([k,v])=>`<div class="barrow"><span>${esc(k)}</span><div class="bar"><span style="width:${Math.round(v/max*100)}%"></span></div><b>${(v/60).toFixed(1)} h</b></div>`).join('') || '<div class="empty">Aún no hay actividades finalizadas.</div>';
+}
+
+async function addActivityCatalog() {
+  const input = $('#newActivityCatalog');
+  const name = normalize(input.value);
+  if (!name) return;
+  const { data, error } = await sb.from('tipos_actividad').upsert({ nombre:name, activo:true }, { onConflict:'nombre' }).select().single();
+  if (error) return toast(error.message);
+  input.value='';
+  if (!activityTypes.some(x=>x.id===data.id)) activityTypes.push(data);
+  activityTypes.sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  refreshCatalogUI();
+  toast('Actividad agregada');
+}
+
+function readWorkbook(file) {
+  return new Promise((ok,no) => {
+    const r = new FileReader();
+    r.onload = e => { try { ok(XLSX.read(e.target.result,{type:'array'})); } catch(err){ no(err); } };
+    r.onerror = () => no(r.error);
+    r.readAsArrayBuffer(file);
+  });
+}
+function rowObjects(ws) { return XLSX.utils.sheet_to_json(ws,{defval:'',raw:false}); }
+function chunks(arr,n=300){ const out=[]; for(let i=0;i<arr.length;i+=n)out.push(arr.slice(i,i+n)); return out; }
+
+async function uploadStores() {
+  const f = $('#storesFile').files[0];
+  if (!f) return toast('Selecciona un archivo');
+  const btn = $('#loadStores'); setBusy(btn,true,'Actualizando...');
+  try {
+    const wb = await readWorkbook(f);
+    const ws = wb.Sheets[wb.SheetNames.find(n=>normalize(n).includes('BASE DE TIENDAS')) || wb.SheetNames[0]];
+    const rows = rowObjects(ws), next=[];
+    for (const r of rows) {
+      const m = Object.fromEntries(Object.keys(r).map(k=>[normalize(k),r[k]]));
+      const det = String(m['NUMERO DE TIENDA/DETERMINANTE'] || m['DETERMINANTE'] || '').replace(/\.0$/,'').trim();
+      if (!det) continue;
+      next.push({
+        determinante:det,
+        nombre_tienda:normalize(m['TIENDA'] || m['NOMBRE DE LA TIENDA']),
+        region:normalize(m['REGION']), socio:normalize(m['SOCIO']), estado:normalize(m['ESTADO']),
+        estatus:normalize(m['ESTATUS']), team_lider:normalize(m['TEAM LIDER']), updated_at:new Date().toISOString()
+      });
+    }
+    if (!next.length) throw new Error('No encontré determinantes');
+    for (const part of chunks(next)) {
+      const r = await sb.from('tiendas').upsert(part,{onConflict:'determinante'});
+      if (r.error) throw r.error;
+    }
+    await sb.from('importaciones').insert({tipo:'BASE_TIENDAS',nombre_archivo:f.name,registros:next.length});
+    $('#storesStatus').textContent = `${next.length} tiendas compartidas · ${new Date().toLocaleString('es-MX')}`;
+    toast('BASE DE TIENDAS actualizada');
+    await loadCatalogs();
+  } catch(e) { toast('No pude leer tiendas: '+e.message); }
+  finally { setBusy(btn,false); }
+}
+
+async function uploadAttendance() {
+  const f = $('#attendanceFile').files[0];
+  if (!f) return toast('Selecciona un archivo');
+  const btn = $('#loadAttendance'); setBusy(btn,true,'Actualizando...');
+  try {
+    const wb = await readWorkbook(f);
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = rowObjects(ws), next=[];
+    for (const r of rows) {
+      const m = Object.fromEntries(Object.keys(r).map(k=>[normalize(k),r[k]]));
+      const name = normalize(m['NOMBRE COMPLETO']);
+      if (!name) continue;
+      const det = String(m['DETERMINANTE']||'').replace(/\.0$/,'').trim();
+      const user = normalize(m['USUARIO'] || m['USUARIO FICO']);
+      const item = {
+        nombre_completo:name,
+        usuario_fico:user && user !== 'PENDIENTE' ? user : null,
+        perfil:normalize(m['PERFIL DE PUESTO'] || m['PERFIL DE PUESTO BANCO']),
+        estatus:normalize(m['ESTATUS']) || 'ACTIVO',
+        determinante:det || null,
+        region:normalize(m['REGION']) || null,
+        origen:'ASISTENCIA', activo:true,
+        updated_at:new Date().toISOString()
+      };
+      item.clave = personKey({name:item.nombre_completo,user:item.usuario_fico,store:item.determinante});
+      next.push(item);
+    }
+    if (!next.length) throw new Error('No encontré NOMBRE COMPLETO');
+    const off = await sb.from('personas').update({activo:false,updated_at:new Date().toISOString()}).eq('origen','ASISTENCIA');
+    if (off.error) throw off.error;
+    for (const part of chunks(next)) {
+      const r = await sb.from('personas').upsert(part,{onConflict:'clave'});
+      if (r.error) throw r.error;
+    }
+    await sb.from('importaciones').insert({tipo:'ASISTENCIA',nombre_archivo:f.name,registros:next.length});
+    $('#attendanceStatus').textContent = `${next.length} personas compartidas · ${new Date().toLocaleString('es-MX')}`;
+    toast('ASISTENCIA actualizada');
+    await loadCatalogs();
+  } catch(e) { toast('No pude leer ASISTENCIA: '+e.message); }
+  finally { setBusy(btn,false); }
+}
+
+function subscribeRealtime() {
+  if (realtimeChannel) sb.removeChannel(realtimeChannel);
+  realtimeChannel = sb.channel('mesa-control-live')
+    .on('postgres_changes',{event:'*',schema:'public',table:'actividades'},async()=>{ await renderLive(); await renderRecentActivities(); })
+    .on('postgres_changes',{event:'*',schema:'public',table:'seguimientos'},async()=>{ await renderRecentFollowups(); if(selectedPromoter) await renderPromoter(); })
+    .subscribe();
+  setInterval(() => { if (currentUser) renderLive(); }, 20000);
+}
+
 init();

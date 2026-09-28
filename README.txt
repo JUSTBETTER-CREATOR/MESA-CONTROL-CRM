@@ -1,10 +1,13 @@
-MESA DE CONTROL CRM - V2
+MESA DE CONTROL CRM V3 - GITHUB PAGES + SUPABASE
 
-1) Abre index.html con Chrome/Edge.
-2) El prototipo ya trae precargados los catálogos extraídos de:
-   - ASISTENCIA_INVEX_27 09 2026.xlsx
-   - BASE DE TIENDAS INVEX_22-09-2026 RANKING (3).xlsx
-3) En Catálogos puedes cargar versiones nuevas de ambos archivos. El historial local no se borra.
-4) Los datos operativos del prototipo se guardan en el navegador (localStorage) y las evidencias en IndexedDB.
-5) Para que varias computadoras vean lo mismo en tiempo real, la siguiente fase es conectar Supabase/Firebase. Esta V2 sirve para validar el flujo y diseño antes de conectar backend.
-6) Chart.js y SheetJS se cargan desde CDN, por lo que se necesita internet para estadísticas y carga de Excel.
+1. En Supabase > SQL Editor ejecuta SQL_PASO_4_SUPABASE.sql.
+2. Reemplaza en GitHub los archivos index.html, styles.css, app.js y agrega config.js.
+3. Conserva la carpeta assets/catalogs.js.
+4. Espera a que GitHub Pages publique los cambios.
+5. Entra con el usuario creado en Supabase Authentication.
+6. Una sola vez: abre Catálogos y carga la ASISTENCIA actual y la BASE DE TIENDAS actual.
+7. Desde ese momento, personas, tiendas, actividades y seguimientos se comparten entre usuarios.
+
+IMPORTANTE:
+- config.js contiene una PUBLISHABLE KEY de Supabase. Está diseñada para usarse públicamente en el navegador.
+- NO pongas jamás una secret key o service_role key en GitHub.
