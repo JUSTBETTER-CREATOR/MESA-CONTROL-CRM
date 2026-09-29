@@ -30,6 +30,31 @@ const fmt = (d) => d ? new Date(d).toLocaleString('es-MX', { dateStyle: 'short',
 const mins = (a,b) => Math.max(1, Math.round((new Date(b)-new Date(a))/60000));
 const normalize = (s) => String(s ?? '').trim().toUpperCase();
 const detFromText = (v) => ((String(v||'').match(/^\s*([0-9]+)/)||[])[1] || '').replace(/^0+(?=\d)/,'');
+const ANALYST_PALETTES = [
+  { bg:'#fff0f7', border:'#e979ad', strong:'#bf4f87', soft:'#ffd6e9' },
+  { bg:'#eef3ff', border:'#6687ef', strong:'#3f60c8', soft:'#dce6ff' },
+  { bg:'#effcf5', border:'#58b98a', strong:'#2e8d64', soft:'#d4f5e4' },
+  { bg:'#fff7e8', border:'#e8a84f', strong:'#b87924', soft:'#ffe8bb' },
+  { bg:'#f5efff', border:'#9b73dc', strong:'#7045b7', soft:'#e6d7ff' },
+  { bg:'#eefbff', border:'#52a9c8', strong:'#2b7f9e', soft:'#d2f2fd' },
+  { bg:'#fff1ee', border:'#e77f6f', strong:'#b95043', soft:'#ffd9d2' },
+  { bg:'#f7f8e9', border:'#9aaa4f', strong:'#6d7d2b', soft:'#edf1c8' },
+  { bg:'#fff0fb', border:'#ce6fc1', strong:'#9d4492', soft:'#f6d4f0' },
+  { bg:'#f0f4f8', border:'#71859b', strong:'#4c6076', soft:'#dce5ed' }
+];
+
+function analystPalette(name='') {
+  const key = normalize(name);
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
+  return ANALYST_PALETTES[Math.abs(hash) % ANALYST_PALETTES.length];
+}
+
+function analystVars(name='') {
+  const p = analystPalette(name);
+  return `--analyst-bg:${p.bg};--analyst-border:${p.border};--analyst-strong:${p.strong};--analyst-soft:${p.soft}`;
+}
+
 const personKey = (p) => {
   const user = normalize(p.user || p.usuario_fico);
   const name = normalize(p.name || p.nombre_completo);
@@ -395,8 +420,9 @@ async function renderLive() {
     const attendees = (x.actividad_asistentes||[]).map(a=>a.personas?.nombre_completo).filter(Boolean);
     const type = x.tipos_actividad?.nombre || x.actividad_manual || 'ACTIVIDAD';
     const place = x.determinante ? `🏪 ${esc(x.determinante)}${x.tiendas?.nombre_tienda ? ' — '+esc(x.tiendas.nombre_tienda):''}` : (x.region ? `📍 ${esc(x.region)}` : '');
-    const mine = x.analistas?.nombre === currentAnalyst?.nombre;
-    return `<div class="card"><span class="badge">🟢 EN CURSO</span><h3>${esc(x.analistas?.nombre||'')}</h3><b>${esc(type)}</b>${place?`<div class="meta">${place}</div>`:''}${attendees.length?`<div class="meta">👥 ${attendees.length} asistentes</div>`:''}<div class="meta">Desde ${fmt(x.inicio)}</div>${x.notas?`<div class="meta">📝 ${esc(x.notas)}</div>`:''}${mine?`<button class="finish-card-btn" data-finish-id="${x.id}">✅ Finalizar actividad</button>`:''}</div>`;
+    const analystName = x.analistas?.nombre || '';
+    const mine = analystName === currentAnalyst?.nombre;
+    return `<div class="card analyst-card" style="${analystVars(analystName)}"><span class="badge analyst-badge">🟢 EN CURSO</span><h3><span class="analyst-dot"></span>${esc(analystName)}</h3><b>${esc(type)}</b>${place?`<div class="meta">${place}</div>`:''}${attendees.length?`<div class="meta">👥 ${attendees.length} asistentes</div>`:''}<div class="meta">Desde ${fmt(x.inicio)}</div>${x.notas?`<div class="meta">📝 ${esc(x.notas)}</div>`:''}${mine?`<button class="finish-card-btn" data-finish-id="${x.id}">✅ Finalizar actividad</button>`:''}</div>`;
   }).join('');
   c.querySelectorAll('[data-finish-id]').forEach(btn => {
     btn.onclick = () => finishMine(btn.dataset.finishId);
@@ -409,7 +435,10 @@ async function renderRecentActivities() {
     .select('inicio,fin,region,determinante,actividad_manual,cierre,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
     .eq('estatus','FINALIZADA').order('fin',{ascending:false}).limit(10);
   if (error) return;
-  $('#recentActivities').innerHTML = (data||[]).map(x => `<div class="event finished-event"><div class="row"><b>✅ ${esc(x.analistas?.nombre)} · ${esc(x.tipos_actividad?.nombre||x.actividad_manual||'ACTIVIDAD')}</b><span class="badge badge-done">FINALIZADA</span></div><div class="meta">${fmt(x.inicio)} → ${fmt(x.fin)} · <b>${x.fin?mins(x.inicio,x.fin)+' min':''}</b> · ${esc(x.determinante||x.region||'GENERAL')}</div>${x.cierre?`<div class="close-note">📝 ${esc(x.cierre)}</div>`:''}</div>`).join('') || '<div class="empty">Sin actividades finalizadas todavía.</div>';
+  $('#recentActivities').innerHTML = (data||[]).map(x => {
+    const analystName = x.analistas?.nombre || '';
+    return `<div class="event finished-event analyst-event" style="${analystVars(analystName)}"><div class="row"><b><span class="analyst-dot"></span>✅ ${esc(analystName)} · ${esc(x.tipos_actividad?.nombre||x.actividad_manual||'ACTIVIDAD')}</b><span class="badge badge-done">FINALIZADA</span></div><div class="meta">${fmt(x.inicio)} → ${fmt(x.fin)} · <b>${x.fin?mins(x.inicio,x.fin)+' min':''}</b> · ${esc(x.determinante||x.region||'GENERAL')}</div>${x.cierre?`<div class="close-note">📝 ${esc(x.cierre)}</div>`:''}</div>`;
+  }).join('') || '<div class="empty">Sin actividades finalizadas todavía.</div>';
 }
 
 async function renderRecentFollowups() {
@@ -419,7 +448,8 @@ async function renderRecentFollowups() {
   if (error) return;
   $('#recentFollowups').innerHTML = (data||[]).map(x => {
     const names=(x.seguimiento_personas||[]).map(p=>p.personas?.nombre_completo).filter(Boolean).join(', ');
-    return `<div class="event"><div class="row"><b>${esc(names||'Promotor')} · ${esc(x.tipos_seguimiento?.nombre||'SEGUIMIENTO')}</b><small>${fmt(x.fecha)}</small></div><small>${esc(x.analistas?.nombre)} · ${esc(x.determinante||x.region||'')}</small></div>`;
+    const analystName = x.analistas?.nombre || '';
+    return `<div class="event analyst-event" style="${analystVars(analystName)}"><div class="row"><b>${esc(names||'Promotor')} · ${esc(x.tipos_seguimiento?.nombre||'SEGUIMIENTO')}</b><small>${fmt(x.fecha)}</small></div><small><span class="analyst-dot"></span>${esc(analystName)} · ${esc(x.determinante||x.region||'')}</small></div>`;
   }).join('') || '<div class="empty">Sin seguimientos todavía.</div>';
 }
 

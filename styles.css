@@ -20,3 +20,19 @@
 
 /* ===== V5: múltiples actividades simultáneas ===== */
 .multi-activity-note{padding:10px 12px;border:1px solid #9cb4ea;background:#eef4ff;border-radius:8px;color:#40527f;font-size:12px}.card .finish-card-btn{display:block}
+
+
+/* ===== V6: color estable por analista ===== */
+.analyst-card{
+  background:linear-gradient(135deg,var(--analyst-bg),#fff);
+  border:2px solid var(--analyst-border);
+  box-shadow:0 6px 15px color-mix(in srgb,var(--analyst-border) 18%,transparent);
+  position:relative;
+  overflow:hidden;
+}
+.analyst-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;background:var(--analyst-border)}
+.analyst-card h3{display:flex;align-items:center;gap:7px;color:var(--analyst-strong)}
+.analyst-badge{background:var(--analyst-soft);color:var(--analyst-strong);border:1px solid var(--analyst-border)}
+.analyst-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--analyst-border);box-shadow:0 0 0 2px #fff,0 0 0 3px var(--analyst-border);margin-right:5px;vertical-align:middle;flex:0 0 auto}
+.analyst-event{border-left-color:var(--analyst-border)!important;background:linear-gradient(90deg,var(--analyst-bg),#fff 38%)}
+.analyst-event .row>b{color:var(--analyst-strong)}
