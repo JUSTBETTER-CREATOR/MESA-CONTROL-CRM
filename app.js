@@ -203,7 +203,7 @@ async function login() {
 
 async function loadCatalogs() {
   const [pRes, sRes, aRes, fRes] = await Promise.all([
-    sb.from('personas').select('*').order('nombre_completo'),
+    sb.from('personas').select('*').eq('estatus','ACTIVO').order('nombre_completo'),
     sb.from('tiendas').select('*').order('determinante'),
     sb.from('tipos_actividad').select('*').eq('activo', true).order('nombre'),
     sb.from('tipos_seguimiento').select('*').eq('activo', true).order('nombre')
