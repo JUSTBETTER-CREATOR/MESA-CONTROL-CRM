@@ -291,8 +291,8 @@ async function startActivity() {
   if (scope === 'REGION' && !region) return toast('Selecciona una región');
 
   setBusy(btn, true, 'Iniciando...');
-  const existing = await sb.from('actividades').select('id').eq('analista_id', currentAnalyst.id).eq('estatus','EN_CURSO').limit(1);
-  if (existing.data?.length) { setBusy(btn,false); return toast('Ya tienes una actividad activa'); }
+  // V5: se permiten varias actividades EN_CURSO para la misma analista.
+  // Cada actividad se finaliza de forma independiente desde su tarjeta en el tablero.
 
   const payload = {
     analista_id: currentAnalyst.id,
@@ -319,7 +319,7 @@ async function startActivity() {
   $('#activityNote').value = '';
   $('#manualActivity').value = '';
   setBusy(btn,false);
-  toast('Actividad iniciada');
+  toast('Actividad iniciada · puedes tener varias en curso');
   await renderAll();
 }
 

@@ -17,3 +17,6 @@
 .modal-card{width:min(580px,96vw);box-shadow:8px 8px 0 rgba(22,45,105,.32)}
 .finish-summary{padding:12px;margin-bottom:14px;background:#eef3ff;border:1px solid #88a5ef;line-height:1.5}
 .modal-card textarea{width:100%;box-sizing:border-box;margin-top:6px}
+
+/* ===== V5: múltiples actividades simultáneas ===== */
+.multi-activity-note{padding:10px 12px;border:1px solid #9cb4ea;background:#eef4ff;border-radius:8px;color:#40527f;font-size:12px}.card .finish-card-btn{display:block}
