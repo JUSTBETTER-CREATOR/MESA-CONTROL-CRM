@@ -72,3 +72,19 @@
 .ranking-time strong{font-size:15px}
 .ranking-count small,.ranking-time small{font-size:10px;color:#77819b}
 @media(max-width:850px){.ranking-toolbar{align-items:stretch;flex-direction:column}.ranking-toolbar label{min-width:0}.ranking-row{grid-template-columns:45px 1fr 90px}.ranking-progress{grid-column:2/-1}.ranking-time{display:none}.ranking-count strong{font-size:20px}}
+
+/* ===== V9: historial desplegable dentro del ranking ===== */
+.ranking-card{border:2px solid var(--analyst-border);border-radius:11px;overflow:hidden;background:#fff;box-shadow:3px 3px 0 color-mix(in srgb,var(--analyst-border) 18%,transparent)}
+.ranking-card .ranking-row{border:0;border-radius:0;box-shadow:none}
+.ranking-actions{display:flex;justify-content:flex-end;padding:0 14px 11px;background:linear-gradient(90deg,var(--analyst-bg),#fff 58%)}
+.ranking-toggle{font-weight:800;border-color:var(--analyst-border)!important;color:var(--analyst-strong)!important;background:#fff!important}
+.ranking-history{padding:12px 14px 14px;border-top:1px dashed var(--analyst-border);background:#fbfcff;display:flex;flex-direction:column;gap:9px}
+.ranking-history-item{display:grid;grid-template-columns:minmax(220px,1.8fr) minmax(180px,1fr);gap:8px 14px;padding:11px 12px;border:1px solid #d7deef;border-left:5px solid #6b89dd;border-radius:8px;background:#fff}
+.ranking-history-item.is-live{border-left-color:#43a86b;background:#f4fff8}
+.ranking-history-item.is-done{border-left-color:var(--analyst-border)}
+.ranking-history-main{display:flex;flex-direction:column;gap:3px}.ranking-history-main small{color:#6f7d9c}
+.ranking-history-status{font-size:10px;font-weight:900;letter-spacing:.03em;color:#52617f}
+.ranking-history-time{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;font-size:11px;color:#6f7d9c}.ranking-history-time b{color:#27375d;font-size:13px;margin-top:3px}
+.ranking-history-note,.ranking-history-close{grid-column:1/-1;padding:7px 9px;border-radius:6px;font-size:12px}
+.ranking-history-note{background:#eef3ff}.ranking-history-close{background:#fff7c7;border:1px solid #ead780}
+@media(max-width:700px){.ranking-history-item{grid-template-columns:1fr}.ranking-history-time{align-items:flex-start}.ranking-actions{justify-content:stretch}.ranking-toggle{width:100%}}

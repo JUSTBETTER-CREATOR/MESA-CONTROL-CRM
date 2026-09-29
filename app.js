@@ -592,48 +592,104 @@ async function renderRanking() {
   if (!box) return;
   const period = $('#rankingPeriod')?.value || 'week';
   box.innerHTML = '<div class="empty">Calculando ranking...</div>';
+
+  // Traemos actividades terminadas y en curso para que el ranking tenga también
+  // un historial desplegable de lo que cada analista va haciendo.
   let q = sb.from('actividades')
-    .select('id,inicio,fin,analista_id,analistas(nombre)')
-    .eq('estatus','FINALIZADA')
-    .not('fin','is',null)
-    .order('fin',{ascending:false})
+    .select('id,inicio,fin,estatus,determinante,region,actividad_manual,notas,cierre,analista_id,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
+    .order('inicio',{ascending:false})
     .limit(10000);
-  const start = rankingStart(period);
-  if (start) q = q.gte('fin', start.toISOString());
+
   const { data, error } = await q;
   if (error) {
     box.innerHTML = `<div class="empty">No pude calcular el ranking: ${esc(error.message)}</div>`;
     return;
   }
 
+  const start = rankingStart(period);
+  const inPeriod = (data || []).filter(x => {
+    if (!start) return true;
+    const ref = x.estatus === 'FINALIZADA' && x.fin ? x.fin : x.inicio;
+    return ref && new Date(ref) >= start;
+  });
+
   const by = {};
-  for (const x of (data || [])) {
+  for (const x of inPeriod) {
     const name = x.analistas?.nombre || 'SIN ANALISTA';
-    if (!by[name]) by[name] = { name, count:0, minutes:0, last:null };
-    by[name].count++;
-    if (x.inicio && x.fin) by[name].minutes += mins(x.inicio, x.fin);
-    if (!by[name].last || new Date(x.fin) > new Date(by[name].last)) by[name].last = x.fin;
+    if (!by[name]) by[name] = { name, count:0, minutes:0, last:null, activities:[] };
+    by[name].activities.push(x);
+    if (x.estatus === 'FINALIZADA' && x.fin) {
+      by[name].count++;
+      if (x.inicio) by[name].minutes += mins(x.inicio, x.fin);
+      if (!by[name].last || new Date(x.fin) > new Date(by[name].last)) by[name].last = x.fin;
+    }
   }
-  const rows = Object.values(by).sort((a,b) => b.count-a.count || a.minutes-b.minutes || a.name.localeCompare(b.name));
+
+  // El ranking sigue siendo por actividades FINALIZADAS. Si alguien solo tiene
+  // actividades en curso todavía no ocupa un lugar del ranking.
+  const rows = Object.values(by)
+    .filter(x => x.count > 0)
+    .sort((a,b) => b.count-a.count || a.minutes-b.minutes || a.name.localeCompare(b.name));
+
   const total = rows.reduce((s,x)=>s+x.count,0);
   const label = period === 'today' ? 'hoy' : period === 'week' ? 'esta semana' : period === 'month' ? 'este mes' : 'en todo el historial';
-  if ($('#rankingSummary')) $('#rankingSummary').innerHTML = `<b>${total}</b> actividades finalizadas ${label} · <b>${rows.length}</b> analistas con cierres`;
+  if ($('#rankingSummary')) $('#rankingSummary').innerHTML = `<b>${total}</b> actividades finalizadas ${label} · <b>${rows.length}</b> analistas con cierres · toca <b>Ver actividades</b> para consultar el historial`;
   if (!rows.length) {
     box.innerHTML = '<div class="empty">Todavía no hay actividades finalizadas en este periodo.</div>';
     return;
   }
+
   const max = rows[0].count || 1;
   box.innerHTML = rows.map((x,i) => {
     const medal = i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : `#${i+1}`;
     const avg = x.count ? Math.round(x.minutes/x.count) : 0;
-    return `<div class="ranking-row" style="${analystVars(x.name)}">
-      <div class="ranking-place">${medal}</div>
-      <div class="ranking-person"><span class="analyst-dot"></span><b>${esc(x.name)}</b><small>Última finalizada: ${fmt(x.last)}</small></div>
-      <div class="ranking-progress"><div class="ranking-bar"><span style="width:${Math.max(6,Math.round(x.count/max*100))}%"></span></div></div>
-      <div class="ranking-count"><strong>${x.count}</strong><small>finalizadas</small></div>
-      <div class="ranking-time"><strong>${(x.minutes/60).toFixed(1)} h</strong><small>${avg} min prom.</small></div>
+    const history = x.activities.map(a => {
+      const type = a.tipos_actividad?.nombre || a.actividad_manual || 'ACTIVIDAD';
+      const place = a.determinante
+        ? `🏪 ${esc(a.determinante)}${a.tiendas?.nombre_tienda ? ' — '+esc(a.tiendas.nombre_tienda) : ''}`
+        : (a.region ? `📍 ${esc(a.region)}` : 'GENERAL');
+      const done = a.estatus === 'FINALIZADA';
+      const duration = done && a.fin ? `${mins(a.inicio,a.fin)} min` : 'en curso';
+      return `<div class="ranking-history-item ${done ? 'is-done' : 'is-live'}">
+        <div class="ranking-history-main">
+          <span class="ranking-history-status">${done ? '✅ FINALIZADA' : '🟢 EN CURSO'}</span>
+          <b>${esc(type)}</b>
+          <small>${place}</small>
+        </div>
+        <div class="ranking-history-time">
+          <span>${fmt(a.inicio)}${done && a.fin ? ' → '+fmt(a.fin) : ''}</span>
+          <b>${duration}</b>
+        </div>
+        ${a.notas ? `<div class="ranking-history-note">📝 ${esc(a.notas)}</div>` : ''}
+        ${a.cierre ? `<div class="ranking-history-close">✔ ${esc(a.cierre)}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    return `<div class="ranking-card" style="${analystVars(x.name)}">
+      <div class="ranking-row">
+        <div class="ranking-place">${medal}</div>
+        <div class="ranking-person"><span class="analyst-dot"></span><b>${esc(x.name)}</b><small>Última finalizada: ${fmt(x.last)}</small></div>
+        <div class="ranking-progress"><div class="ranking-bar"><span style="width:${Math.max(6,Math.round(x.count/max*100))}%"></span></div></div>
+        <div class="ranking-count"><strong>${x.count}</strong><small>finalizadas</small></div>
+        <div class="ranking-time"><strong>${(x.minutes/60).toFixed(1)} h</strong><small>${avg} min prom.</small></div>
+      </div>
+      <div class="ranking-actions">
+        <button class="tiny-btn ranking-toggle" data-ranking-toggle="${i}">📋 Ver actividades (${x.activities.length})</button>
+      </div>
+      <div class="ranking-history hidden" data-ranking-history="${i}">${history}</div>
     </div>`;
   }).join('');
+
+  box.querySelectorAll('[data-ranking-toggle]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.rankingToggle;
+      const panel = box.querySelector(`[data-ranking-history="${id}"]`);
+      if (!panel) return;
+      const opening = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden');
+      btn.textContent = opening ? '▲ Ocultar actividades' : `📋 Ver actividades (${panel.children.length})`;
+    };
+  });
 }
 
 async function renderStats() {
