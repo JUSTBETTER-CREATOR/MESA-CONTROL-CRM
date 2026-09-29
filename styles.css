@@ -36,3 +36,20 @@
 .analyst-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--analyst-border);box-shadow:0 0 0 2px #fff,0 0 0 3px var(--analyst-border);margin-right:5px;vertical-align:middle;flex:0 0 auto}
 .analyst-event{border-left-color:var(--analyst-border)!important;background:linear-gradient(90deg,var(--analyst-bg),#fff 38%)}
 .analyst-event .row>b{color:var(--analyst-strong)}
+
+/* ===== V7: anuncios compartidos ===== */
+.announcement-window{border-color:#d18a2d;background:linear-gradient(180deg,#fffdf5,#fff8df)}
+.announcement-window .titlebar{background:linear-gradient(#f5b74f,#de8c24);color:#3b2a0f}
+.announcement-composer{padding:12px;margin-bottom:14px;background:#fff7c9;border:1px dashed #d6a13d;border-radius:9px}
+.announcement-composer label{display:flex;flex-direction:column;gap:7px}
+.announcement-composer textarea{background:#fffef6;border-color:#d9b464}
+.announcement-actions{display:flex;align-items:center;gap:10px;margin-top:9px;flex-wrap:wrap}
+.announcements-list{display:flex;flex-direction:column;gap:10px}
+.announcement-card{position:relative;display:flex;gap:10px;align-items:flex-start;padding:14px 44px 14px 14px;background:linear-gradient(135deg,#fff7a8,#fff1bf);border:2px solid #d59b2f;border-radius:9px;box-shadow:4px 4px 0 rgba(124,83,18,.14)}
+.announcement-pin{font-size:22px;line-height:1}
+.announcement-content{min-width:0}
+.announcement-message{font-size:17px;font-weight:800;white-space:pre-wrap;overflow-wrap:anywhere;color:#493515}
+.announcement-meta{margin-top:6px;font-size:11px;color:#806738}
+.announcement-close{position:absolute;right:10px;top:9px;width:27px;height:27px;border:1px solid #b98227;background:#fff8d7;border-radius:6px;font-size:18px;font-weight:800;color:#7c5112;cursor:pointer}
+.announcement-close:hover{background:#ffeaa1}
+@media(max-width:650px){.announcement-message{font-size:15px}.announcement-card{padding-right:40px}}

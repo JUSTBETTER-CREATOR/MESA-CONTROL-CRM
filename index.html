@@ -52,6 +52,22 @@
 
     <main>
       <section class="view active" id="view-inicio">
+        <div class="window announcement-window">
+          <div class="titlebar"><span>📣 ANUNCIOS</span><span>— □ ×</span></div>
+          <div class="window-body">
+            <div id="announcementComposer" class="announcement-composer hidden">
+              <label><b>Nuevo anuncio</b>
+                <textarea id="announcementText" rows="3" maxlength="500" placeholder="Ej. HOY ES REFUERZO DE PENDIENTES FORMALIZAR"></textarea>
+              </label>
+              <div class="announcement-actions">
+                <button id="publishAnnouncement" class="primary">📣 Publicar anuncio</button>
+                <small>Solo MARIELA puede publicar o cerrar anuncios.</small>
+              </div>
+            </div>
+            <div id="announcementsList" class="announcements-list"></div>
+            <div id="announcementsEmpty" class="empty">No hay anuncios activos.</div>
+          </div>
+        </div>
         <div class="window hero">
           <div class="titlebar"><span>🟢 ¿Qué está haciendo el equipo?</span><span>— □ ×</span></div>
           <div class="window-body">

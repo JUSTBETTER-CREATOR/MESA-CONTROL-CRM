@@ -121,6 +121,7 @@ async function enterApp(user) {
   $('#loginScreen').classList.add('hidden');
   $('#appShell').classList.remove('hidden');
   $('#whoAmI').textContent = `👤 ${currentAnalyst.nombre}`;
+  $('#announcementComposer').classList.toggle('hidden', normalize(currentAnalyst.nombre) !== 'MARIELA');
   $('#activityOwner').value = currentAnalyst.nombre;
   $('#fuOwner').value = currentAnalyst.nombre;
   await loadCatalogs();
@@ -182,7 +183,9 @@ function bindStaticEvents() {
   $('#loadAttendance').onclick = uploadAttendance;
   $('#loadStores').onclick = uploadStores;
   $('#addActivityCatalog').onclick = addActivityCatalog;
+  $('#publishAnnouncement').onclick = publishAnnouncement;
 }
+
 
 async function login() {
   const btn = $('#loginBtn');
@@ -407,7 +410,55 @@ async function confirmFinishActivity() {
 }
 
 async function renderAll() {
-  await Promise.all([renderLive(), renderRecentActivities(), renderRecentFollowups()]);
+  await Promise.all([renderAnnouncements(), renderLive(), renderRecentActivities(), renderRecentFollowups()]);
+}
+
+async function renderAnnouncements() {
+  const { data, error } = await sb.from('anuncios')
+    .select('id,mensaje,created_at,activo,analistas(nombre)')
+    .eq('activo', true)
+    .order('created_at', { ascending:false });
+  if (error) {
+    $('#announcementsList').innerHTML = '';
+    $('#announcementsEmpty').textContent = 'No pude cargar anuncios: ' + error.message;
+    $('#announcementsEmpty').style.display = 'block';
+    return;
+  }
+  const rows = data || [];
+  $('#announcementsEmpty').style.display = rows.length ? 'none' : 'block';
+  $('#announcementsList').innerHTML = rows.map(x => {
+    const canClose = normalize(currentAnalyst?.nombre) === 'MARIELA';
+    return `<div class="announcement-card"><div class="announcement-pin">📌</div><div class="announcement-content"><div class="announcement-message">${esc(x.mensaje)}</div><div class="announcement-meta">Publicado por ${esc(x.analistas?.nombre || 'MARIELA')} · ${fmt(x.created_at)}</div></div>${canClose ? `<button class="announcement-close" data-close-announcement="${x.id}" title="Cerrar anuncio">×</button>` : ''}</div>`;
+  }).join('');
+  $('#announcementsList').querySelectorAll('[data-close-announcement]').forEach(btn => {
+    btn.onclick = () => closeAnnouncement(btn.dataset.closeAnnouncement);
+  });
+}
+
+async function publishAnnouncement() {
+  if (normalize(currentAnalyst?.nombre) !== 'MARIELA') return toast('Solo MARIELA puede publicar anuncios');
+  const txt = $('#announcementText').value.trim();
+  if (!txt) return toast('Escribe el anuncio');
+  const btn = $('#publishAnnouncement');
+  setBusy(btn,true,'Publicando...');
+  const { error } = await sb.from('anuncios').insert({
+    mensaje: txt,
+    autor_id: currentAnalyst.id,
+    activo: true
+  });
+  setBusy(btn,false);
+  if (error) return toast('No pude publicar: ' + error.message);
+  $('#announcementText').value = '';
+  toast('📣 Anuncio publicado');
+  await renderAnnouncements();
+}
+
+async function closeAnnouncement(id) {
+  if (normalize(currentAnalyst?.nombre) !== 'MARIELA') return;
+  const { error } = await sb.from('anuncios').update({ activo:false }).eq('id', id);
+  if (error) return toast('No pude cerrar el anuncio: ' + error.message);
+  toast('Anuncio cerrado');
+  await renderAnnouncements();
 }
 
 async function renderLive() {
@@ -642,6 +693,7 @@ function subscribeRealtime() {
   realtimeChannel = sb.channel('mesa-control-live')
     .on('postgres_changes',{event:'*',schema:'public',table:'actividades'},async()=>{ await renderLive(); await renderRecentActivities(); })
     .on('postgres_changes',{event:'*',schema:'public',table:'seguimientos'},async()=>{ await renderRecentFollowups(); if(selectedPromoter) await renderPromoter(); })
+    .on('postgres_changes',{event:'*',schema:'public',table:'anuncios'},async()=>{ await renderAnnouncements(); })
     .subscribe();
   setInterval(() => { if (currentUser) renderLive(); }, 20000);
 }
