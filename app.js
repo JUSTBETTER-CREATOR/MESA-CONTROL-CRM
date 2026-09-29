@@ -235,13 +235,34 @@ function refreshCatalogUI() {
 
 function searchPeople(q, scope='GENERAL', store='', region='') {
   q = normalize(q);
-  let arr = people.filter(p => !q || normalize(p.nombre_completo).includes(q) || normalize(p.usuario_fico).includes(q));
+
+  // Solo mostrar personas cuyo ESTATUS sea exactamente ACTIVO.
+  // Se elimina el límite anterior de 15 resultados para que aparezcan todos.
+  let arr = people.filter(p => {
+    const estatus = normalize(p.estatus);
+    const coincideBusqueda = !q ||
+      normalize(p.nombre_completo).includes(q) ||
+      normalize(p.usuario_fico).includes(q);
+
+    return estatus === 'ACTIVO' && p.activo !== false && coincideBusqueda;
+  });
+
   if (scope === 'TIENDA') {
     const d = detFromText(store);
-    if (d) arr = arr.filter(p => String(p.determinante||'') === d);
+    if (d) arr = arr.filter(p => String(p.determinante || '') === d);
   }
-  if (scope === 'REGION' && region) arr = arr.filter(p => p.region === region);
-  return arr.sort((a,b) => ((b.activo?1:0)-(a.activo?1:0)) || normalize(a.nombre_completo).localeCompare(normalize(b.nombre_completo))).slice(0,15);
+
+  if (scope === 'REGION' && region) {
+    arr = arr.filter(p => normalize(p.region) === normalize(region));
+  }
+
+  return arr.sort((a, b) =>
+    normalize(a.nombre_completo).localeCompare(
+      normalize(b.nombre_completo),
+      'es',
+      { numeric: true }
+    )
+  );
 }
 
 function bindPersonSearch(input, res, callback, filterFn) {
