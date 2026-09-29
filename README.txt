@@ -11,3 +11,10 @@ MESA DE CONTROL CRM V3 - GITHUB PAGES + SUPABASE
 IMPORTANTE:
 - config.js contiene una PUBLISHABLE KEY de Supabase. Está diseñada para usarse públicamente en el navegador.
 - NO pongas jamás una secret key o service_role key en GitHub.
+
+
+V4 - FINALIZACION DE ACTIVIDADES
+1. Ejecutar SQL_PASO_5_FINALIZAR_ACTIVIDADES.sql en Supabase.
+2. Reemplazar index.html, app.js y styles.css en GitHub.
+3. Al finalizar una actividad se guarda hora fin, duracion y cierre opcional.
+4. En Inicio aparecen las finalizadas recientemente con estado FINALIZADA.

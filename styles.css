@@ -4,3 +4,16 @@
 .login-screen{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;padding:18px;background:linear-gradient(135deg,rgba(206,215,255,.94),rgba(250,190,224,.94));backdrop-filter:blur(8px)}
 .login-window{width:min(430px,95vw);margin:0}.login-window .window-body{display:flex;flex-direction:column;gap:12px}.login-window h1{margin:0;text-align:center}.login-window label{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:13px}.login-computer{text-align:center;font-size:56px;filter:drop-shadow(0 5px 4px rgba(70,80,130,.18))}.login-btn{width:100%}.login-error{min-height:20px;color:#b13754;font-size:12px}.top-user{display:flex;align-items:center;gap:10px}.tiny-btn{border:1px solid #a9b7dd;background:#f7f2fb;padding:5px 9px;border-radius:7px;color:#40527f}.tiny-btn:hover{background:#e7ecff}.window-body p{line-height:1.45}.card b{display:block}.card .meta{line-height:1.45}
 @media(max-width:650px){.top-user .clock{display:none}.top-user{gap:6px}.brand span{display:none}}
+
+
+/* ===== V4: finalización de actividades ===== */
+.finish-card-btn{margin-top:12px;width:100%;padding:9px 12px;border:2px solid #183e91;background:#dfffea;box-shadow:2px 2px 0 #183e91;font-weight:800;cursor:pointer}
+.finish-card-btn:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 #183e91}
+.badge-done{background:#c9f6da!important;color:#164b2b!important;border-color:#4a9b68!important}
+.finished-event{border-left:4px solid #56a873;padding-left:12px}
+.close-note{margin-top:8px;padding:8px 10px;background:#fff7c7;border:1px solid #c9a943}
+.modal{position:fixed;inset:0;z-index:9999;background:rgba(33,35,65,.38);display:flex;align-items:center;justify-content:center;padding:18px}
+.modal.hidden{display:none!important}
+.modal-card{width:min(580px,96vw);box-shadow:8px 8px 0 rgba(22,45,105,.32)}
+.finish-summary{padding:12px;margin-bottom:14px;background:#eef3ff;border:1px solid #88a5ef;line-height:1.5}
+.modal-card textarea{width:100%;box-sizing:border-box;margin-top:6px}

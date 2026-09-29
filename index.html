@@ -61,7 +61,7 @@
         </div>
         <div class="grid-2">
           <div class="window">
-            <div class="titlebar"><span>🕘 Historial reciente</span><span>— □ ×</span></div>
+            <div class="titlebar"><span>✅ Actividades finalizadas recientemente</span><span>— □ ×</span></div>
             <div class="window-body"><div id="recentActivities" class="timeline"></div></div>
           </div>
           <div class="window">
@@ -188,6 +188,21 @@
     </main>
 
     <datalist id="storesList"></datalist>
+    <div id="finishModal" class="modal hidden">
+      <div class="modal-card window">
+        <div class="titlebar"><span>✅ Finalizar actividad</span><span>— □ ×</span></div>
+        <div class="window-body">
+          <div id="finishSummary" class="finish-summary"></div>
+          <label>Resultado / cierre <small>(opcional)</small>
+            <textarea id="finishResult" rows="4" placeholder="Ej. Se habló con 4 promotores; 2 quedaron activados y 2 requieren seguimiento."></textarea>
+          </label>
+          <div class="actions">
+            <button id="finishCancel">Cancelar</button>
+            <button id="finishConfirm" class="primary">✅ Confirmar finalización</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="toast"></div>
   </div>
 

@@ -16,6 +16,7 @@ let selectedFuPerson = null;
 let selectedPromoter = null;
 let chart = null;
 let realtimeChannel = null;
+let pendingFinishActivity = null;
 
 const toast = (t) => {
   const x = $('#toast');
@@ -149,6 +150,9 @@ function bindStaticEvents() {
 
   $('#startActivity').onclick = startActivity;
   $('#finishMine').onclick = finishMine;
+  $('#finishCancel').onclick = closeFinishModal;
+  $('#finishConfirm').onclick = confirmFinishActivity;
+  $('#finishModal').addEventListener('click', e => { if (e.target.id === 'finishModal') closeFinishModal(); });
   $('#saveFollowup').onclick = saveFollowup;
   $('#loadAttendance').onclick = uploadAttendance;
   $('#loadStores').onclick = uploadStores;
@@ -319,16 +323,61 @@ async function startActivity() {
   await renderAll();
 }
 
-async function finishMine() {
-  const btn = $('#finishMine');
+async function finishMine(activityId = null) {
+  let act = null;
+  let error = null;
+
+  if (activityId) {
+    const res = await sb.from('actividades')
+      .select('id,inicio,determinante,region,actividad_manual,notas,analista_id,tipos_actividad(nombre)')
+      .eq('id', activityId)
+      .eq('analista_id', currentAnalyst.id)
+      .eq('estatus','EN_CURSO')
+      .maybeSingle();
+    act = res.data; error = res.error;
+  } else {
+    const res = await sb.from('actividades')
+      .select('id,inicio,determinante,region,actividad_manual,notas,analista_id,tipos_actividad(nombre)')
+      .eq('analista_id', currentAnalyst.id)
+      .eq('estatus','EN_CURSO')
+      .order('inicio',{ascending:false})
+      .limit(1)
+      .maybeSingle();
+    act = res.data; error = res.error;
+  }
+
+  if (error) return toast(error.message);
+  if (!act) return toast('No tienes una actividad activa');
+
+  pendingFinishActivity = act;
+  const type = act.tipos_actividad?.nombre || act.actividad_manual || 'ACTIVIDAD';
+  const place = act.determinante ? `Tienda ${act.determinante}` : (act.region || 'General');
+  $('#finishSummary').innerHTML = `<b>${esc(type)}</b><br><span>${esc(place)} · iniciada ${fmt(act.inicio)}</span>`;
+  $('#finishResult').value = '';
+  $('#finishModal').classList.remove('hidden');
+  setTimeout(() => $('#finishResult').focus(), 50);
+}
+
+function closeFinishModal() {
+  pendingFinishActivity = null;
+  $('#finishModal').classList.add('hidden');
+}
+
+async function confirmFinishActivity() {
+  if (!pendingFinishActivity) return;
+  const btn = $('#finishConfirm');
   setBusy(btn,true,'Finalizando...');
-  const { data: act, error } = await sb.from('actividades').select('id').eq('analista_id', currentAnalyst.id).eq('estatus','EN_CURSO').order('inicio',{ascending:false}).limit(1).maybeSingle();
-  if (error) { setBusy(btn,false); return toast(error.message); }
-  if (!act) { setBusy(btn,false); return toast('No tienes una actividad activa'); }
-  const r = await sb.from('actividades').update({ estatus:'FINALIZADA', fin:new Date().toISOString() }).eq('id', act.id);
+  const fin = new Date().toISOString();
+  const cierre = $('#finishResult').value.trim() || null;
+  const r = await sb.from('actividades')
+    .update({ estatus:'FINALIZADA', fin, cierre })
+    .eq('id', pendingFinishActivity.id)
+    .eq('analista_id', currentAnalyst.id)
+    .eq('estatus','EN_CURSO');
   setBusy(btn,false);
   if (r.error) return toast('No pude finalizar: ' + r.error.message);
-  toast('Actividad finalizada');
+  closeFinishModal();
+  toast('✅ Actividad finalizada');
   await renderAll();
 }
 
@@ -346,17 +395,21 @@ async function renderLive() {
     const attendees = (x.actividad_asistentes||[]).map(a=>a.personas?.nombre_completo).filter(Boolean);
     const type = x.tipos_actividad?.nombre || x.actividad_manual || 'ACTIVIDAD';
     const place = x.determinante ? `🏪 ${esc(x.determinante)}${x.tiendas?.nombre_tienda ? ' — '+esc(x.tiendas.nombre_tienda):''}` : (x.region ? `📍 ${esc(x.region)}` : '');
-    return `<div class="card"><span class="badge">EN CURSO</span><h3>${esc(x.analistas?.nombre||'')}</h3><b>${esc(type)}</b>${place?`<div class="meta">${place}</div>`:''}${attendees.length?`<div class="meta">👥 ${attendees.length} asistentes</div>`:''}<div class="meta">Desde ${fmt(x.inicio)}</div>${x.notas?`<div class="meta">📝 ${esc(x.notas)}</div>`:''}</div>`;
+    const mine = x.analistas?.nombre === currentAnalyst?.nombre;
+    return `<div class="card"><span class="badge">🟢 EN CURSO</span><h3>${esc(x.analistas?.nombre||'')}</h3><b>${esc(type)}</b>${place?`<div class="meta">${place}</div>`:''}${attendees.length?`<div class="meta">👥 ${attendees.length} asistentes</div>`:''}<div class="meta">Desde ${fmt(x.inicio)}</div>${x.notas?`<div class="meta">📝 ${esc(x.notas)}</div>`:''}${mine?`<button class="finish-card-btn" data-finish-id="${x.id}">✅ Finalizar actividad</button>`:''}</div>`;
   }).join('');
+  c.querySelectorAll('[data-finish-id]').forEach(btn => {
+    btn.onclick = () => finishMine(btn.dataset.finishId);
+  });
   $('#liveEmpty').style.display = data?.length ? 'none' : 'block';
 }
 
 async function renderRecentActivities() {
   const { data, error } = await sb.from('actividades')
-    .select('inicio,fin,region,determinante,actividad_manual,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
+    .select('inicio,fin,region,determinante,actividad_manual,cierre,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
     .eq('estatus','FINALIZADA').order('fin',{ascending:false}).limit(10);
   if (error) return;
-  $('#recentActivities').innerHTML = (data||[]).map(x => `<div class="event"><div class="row"><b>${esc(x.analistas?.nombre)} · ${esc(x.tipos_actividad?.nombre||x.actividad_manual||'ACTIVIDAD')}</b><small>${fmt(x.inicio)}</small></div><small>${x.fin?mins(x.inicio,x.fin)+' min · ':''}${esc(x.determinante||x.region||'GENERAL')}</small></div>`).join('') || '<div class="empty">Sin historial todavía.</div>';
+  $('#recentActivities').innerHTML = (data||[]).map(x => `<div class="event finished-event"><div class="row"><b>✅ ${esc(x.analistas?.nombre)} · ${esc(x.tipos_actividad?.nombre||x.actividad_manual||'ACTIVIDAD')}</b><span class="badge badge-done">FINALIZADA</span></div><div class="meta">${fmt(x.inicio)} → ${fmt(x.fin)} · <b>${x.fin?mins(x.inicio,x.fin)+' min':''}</b> · ${esc(x.determinante||x.region||'GENERAL')}</div>${x.cierre?`<div class="close-note">📝 ${esc(x.cierre)}</div>`:''}</div>`).join('') || '<div class="empty">Sin actividades finalizadas todavía.</div>';
 }
 
 async function renderRecentFollowups() {
