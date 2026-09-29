@@ -47,6 +47,7 @@
       <button class="tab" data-view="seguimiento">📋 Registrar seguimiento</button>
       <button class="tab" data-view="promotor">👤 Seguimientos por promotor</button>
       <button class="tab" data-view="estadisticas">📊 Estadísticas</button>
+      <button class="tab" data-view="ranking">🏆 Ranking actividades</button>
       <button class="tab" data-view="catalogos">⚙ Catálogos</button>
     </nav>
 
@@ -161,6 +162,30 @@
             </div>
             <div id="promoterProfile" class="profile hidden"></div>
             <div id="promoterTimeline" class="timeline big"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-ranking">
+        <div class="window large ranking-window">
+          <div class="titlebar"><span>🏆 Ranking de actividades finalizadas</span><span>— □ ×</span></div>
+          <div class="window-body">
+            <div class="ranking-toolbar">
+              <div>
+                <b>¿Quién va terminando más actividades?</b>
+                <div class="muted">Cuenta únicamente actividades con estado FINALIZADA.</div>
+              </div>
+              <label>Periodo
+                <select id="rankingPeriod">
+                  <option value="today">Hoy</option>
+                  <option value="week" selected>Esta semana</option>
+                  <option value="month">Este mes</option>
+                  <option value="all">Todo el historial</option>
+                </select>
+              </label>
+            </div>
+            <div class="ranking-summary" id="rankingSummary"></div>
+            <div id="activityRanking" class="activity-ranking"></div>
           </div>
         </div>
       </section>

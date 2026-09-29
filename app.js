@@ -136,6 +136,7 @@ function bindTabs() {
     $$('.view').forEach(v => v.classList.remove('active'));
     $('#view-' + b.dataset.view).classList.add('active');
     if (b.dataset.view === 'estadisticas') await renderStats();
+    if (b.dataset.view === 'ranking') await renderRanking();
   });
 }
 
@@ -183,6 +184,7 @@ function bindStaticEvents() {
   $('#loadAttendance').onclick = uploadAttendance;
   $('#loadStores').onclick = uploadStores;
   $('#addActivityCatalog').onclick = addActivityCatalog;
+  if ($('#rankingPeriod')) $('#rankingPeriod').onchange = renderRanking;
   $('#publishAnnouncement').onclick = publishAnnouncement;
 }
 
@@ -568,6 +570,72 @@ async function renderPromoter() {
   $('#promoterTimeline').innerHTML = html.join('') || '<div class="empty">Este promotor todavía no tiene seguimientos.</div>';
 }
 
+function rankingStart(period) {
+  const now = new Date();
+  if (period === 'today') {
+    const d = new Date(now); d.setHours(0,0,0,0); return d;
+  }
+  if (period === 'week') {
+    const d = new Date(now); d.setHours(0,0,0,0);
+    const day = d.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    d.setDate(d.getDate() - diff); return d;
+  }
+  if (period === 'month') {
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  return null;
+}
+
+async function renderRanking() {
+  const box = $('#activityRanking');
+  if (!box) return;
+  const period = $('#rankingPeriod')?.value || 'week';
+  box.innerHTML = '<div class="empty">Calculando ranking...</div>';
+  let q = sb.from('actividades')
+    .select('id,inicio,fin,analista_id,analistas(nombre)')
+    .eq('estatus','FINALIZADA')
+    .not('fin','is',null)
+    .order('fin',{ascending:false})
+    .limit(10000);
+  const start = rankingStart(period);
+  if (start) q = q.gte('fin', start.toISOString());
+  const { data, error } = await q;
+  if (error) {
+    box.innerHTML = `<div class="empty">No pude calcular el ranking: ${esc(error.message)}</div>`;
+    return;
+  }
+
+  const by = {};
+  for (const x of (data || [])) {
+    const name = x.analistas?.nombre || 'SIN ANALISTA';
+    if (!by[name]) by[name] = { name, count:0, minutes:0, last:null };
+    by[name].count++;
+    if (x.inicio && x.fin) by[name].minutes += mins(x.inicio, x.fin);
+    if (!by[name].last || new Date(x.fin) > new Date(by[name].last)) by[name].last = x.fin;
+  }
+  const rows = Object.values(by).sort((a,b) => b.count-a.count || a.minutes-b.minutes || a.name.localeCompare(b.name));
+  const total = rows.reduce((s,x)=>s+x.count,0);
+  const label = period === 'today' ? 'hoy' : period === 'week' ? 'esta semana' : period === 'month' ? 'este mes' : 'en todo el historial';
+  if ($('#rankingSummary')) $('#rankingSummary').innerHTML = `<b>${total}</b> actividades finalizadas ${label} · <b>${rows.length}</b> analistas con cierres`;
+  if (!rows.length) {
+    box.innerHTML = '<div class="empty">Todavía no hay actividades finalizadas en este periodo.</div>';
+    return;
+  }
+  const max = rows[0].count || 1;
+  box.innerHTML = rows.map((x,i) => {
+    const medal = i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : `#${i+1}`;
+    const avg = x.count ? Math.round(x.minutes/x.count) : 0;
+    return `<div class="ranking-row" style="${analystVars(x.name)}">
+      <div class="ranking-place">${medal}</div>
+      <div class="ranking-person"><span class="analyst-dot"></span><b>${esc(x.name)}</b><small>Última finalizada: ${fmt(x.last)}</small></div>
+      <div class="ranking-progress"><div class="ranking-bar"><span style="width:${Math.max(6,Math.round(x.count/max*100))}%"></span></div></div>
+      <div class="ranking-count"><strong>${x.count}</strong><small>finalizadas</small></div>
+      <div class="ranking-time"><strong>${(x.minutes/60).toFixed(1)} h</strong><small>${avg} min prom.</small></div>
+    </div>`;
+  }).join('');
+}
+
 async function renderStats() {
   const { data, error } = await sb.from('actividades')
     .select('inicio,fin,determinante,region,actividad_manual,tipos_actividad(nombre)')
@@ -691,7 +759,7 @@ async function uploadAttendance() {
 function subscribeRealtime() {
   if (realtimeChannel) sb.removeChannel(realtimeChannel);
   realtimeChannel = sb.channel('mesa-control-live')
-    .on('postgres_changes',{event:'*',schema:'public',table:'actividades'},async()=>{ await renderLive(); await renderRecentActivities(); })
+    .on('postgres_changes',{event:'*',schema:'public',table:'actividades'},async()=>{ await renderLive(); await renderRecentActivities(); if ($('#view-ranking')?.classList.contains('active')) await renderRanking(); })
     .on('postgres_changes',{event:'*',schema:'public',table:'seguimientos'},async()=>{ await renderRecentFollowups(); if(selectedPromoter) await renderPromoter(); })
     .on('postgres_changes',{event:'*',schema:'public',table:'anuncios'},async()=>{ await renderAnnouncements(); })
     .subscribe();

@@ -53,3 +53,22 @@
 .announcement-close{position:absolute;right:10px;top:9px;width:27px;height:27px;border:1px solid #b98227;background:#fff8d7;border-radius:6px;font-size:18px;font-weight:800;color:#7c5112;cursor:pointer}
 .announcement-close:hover{background:#ffeaa1}
 @media(max-width:650px){.announcement-message{font-size:15px}.announcement-card{padding-right:40px}}
+
+
+/* ===== V8: ranking de actividades ===== */
+.ranking-window{max-width:1180px}
+.ranking-toolbar{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:14px;padding:12px;background:#f7f4ff;border:1px solid #c9c8ed;border-radius:9px}
+.ranking-toolbar label{min-width:180px;font-size:12px;font-weight:700;display:flex;flex-direction:column;gap:5px}
+.ranking-summary{margin:8px 0 14px;padding:9px 12px;background:#fff8d8;border:1px solid #e0bc59;border-radius:8px;color:#65501c}
+.activity-ranking{display:flex;flex-direction:column;gap:9px}
+.ranking-row{display:grid;grid-template-columns:54px minmax(180px,1.3fr) minmax(140px,2fr) 100px 110px;gap:12px;align-items:center;padding:12px 14px;background:linear-gradient(90deg,var(--analyst-bg),#fff 58%);border:2px solid var(--analyst-border);border-radius:10px;box-shadow:3px 3px 0 color-mix(in srgb,var(--analyst-border) 18%,transparent)}
+.ranking-place{font-size:22px;font-weight:900;text-align:center;color:var(--analyst-strong)}
+.ranking-person{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--analyst-strong)}
+.ranking-person small{width:100%;margin-left:18px;color:#74809f}
+.ranking-bar{height:16px;border-radius:99px;background:#e9edf7;overflow:hidden;border:1px solid #cbd3e7}
+.ranking-bar>span{display:block;height:100%;background:var(--analyst-border);border-radius:99px}
+.ranking-count,.ranking-time{display:flex;flex-direction:column;align-items:flex-end}
+.ranking-count strong{font-size:24px;color:var(--analyst-strong)}
+.ranking-time strong{font-size:15px}
+.ranking-count small,.ranking-time small{font-size:10px;color:#77819b}
+@media(max-width:850px){.ranking-toolbar{align-items:stretch;flex-direction:column}.ranking-toolbar label{min-width:0}.ranking-row{grid-template-columns:45px 1fr 90px}.ranking-progress{grid-column:2/-1}.ranking-time{display:none}.ranking-count strong{font-size:20px}}
