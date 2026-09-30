@@ -505,9 +505,18 @@ async function renderLive() {
 }
 
 async function renderRecentActivities() {
+  // Solo muestra actividades finalizadas HOY, tomando como inicio las 00:00
+  // de la zona horaria local del navegador. Así el apartado se "reinicia" cada día
+  // sin borrar ningún historial de Supabase.
+  const inicioHoy = new Date();
+  inicioHoy.setHours(0, 0, 0, 0);
+
   const { data, error } = await sb.from('actividades')
     .select('inicio,fin,region,determinante,actividad_manual,cierre,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
-    .eq('estatus','FINALIZADA').order('fin',{ascending:false}).limit(10);
+    .eq('estatus','FINALIZADA')
+    .gte('fin', inicioHoy.toISOString())
+    .order('fin',{ascending:false})
+    .limit(50);
   if (error) return;
   $('#recentActivities').innerHTML = (data||[]).map(x => {
     const analystName = x.analistas?.nombre || '';
