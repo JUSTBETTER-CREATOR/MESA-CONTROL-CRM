@@ -888,6 +888,7 @@ function applyRoleUI() {
   const activityTab = document.querySelector('.tab[data-view="actividad"]');
   if (activityTab) activityTab.classList.toggle('admin-hidden', isGlobal());
   $('#finishMine')?.classList.toggle('hidden', isGlobal());
+  $('#quickActivityCreateWrap')?.classList.toggle('hidden', isGlobal());
 }
 
 async function enterApp(user) {
@@ -935,6 +936,8 @@ function setupV13UI() {
   $('#activitySearch')?.addEventListener('focus', renderActivitySearch);
   document.addEventListener('click', e=>{ if(!e.target.closest('.activity-picker')) $('#activityResults')?.classList.remove('show'); });
   $('#catalogActivitySearch')?.addEventListener('input', refreshActivityCatalogChips);
+  $('#quickAddActivityCatalog')?.addEventListener('click', addQuickActivityCatalog);
+  $('#quickNewActivityCatalog')?.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addQuickActivityCatalog(); } });
 }
 
 async function loadCatalogs() {
@@ -983,16 +986,42 @@ function refreshActivityCatalogChips(){
   $('#activityCatalogEmpty').style.display=activityTypes.length?'none':'block';
 }
 
-async function addActivityCatalog(){
-  if(isGlobal()) return toast('Selecciona un área operativa con una cuenta del equipo para crear su catálogo');
-  const input=$('#newActivityCatalog'); const name=normalize(input.value); if(!name) return;
-  let existingQ=sb.from('tipos_actividad').select('*').eq('area_id',activeAreaId).ilike('nombre',name).limit(1);
-  const existing=await existingQ.maybeSingle();
+async function createActivityForArea(rawName){
+  if(isGlobal()) { toast('La vista GLOBAL es de consulta'); return null; }
+  const name=normalize(rawName||'');
+  if(!name) { toast('Escribe el nombre de la actividad'); return null; }
+  if(!activeAreaId) { toast('No pude identificar tu área'); return null; }
+  const existing=await sb.from('tipos_actividad').select('*').eq('area_id',activeAreaId).ilike('nombre',name).limit(1).maybeSingle();
   let data,error;
-  if(existing.data){ ({data,error}=await sb.from('tipos_actividad').update({activo:true}).eq('id',existing.data.id).select().single()); }
-  else { ({data,error}=await sb.from('tipos_actividad').insert({nombre:name,activo:true,area_id:activeAreaId}).select().single()); }
-  if(error) return toast('No pude agregar: '+error.message);
-  input.value=''; if(!activityTypes.some(x=>x.id===data.id)) activityTypes.push(data); activityTypes.sort((a,b)=>a.nombre.localeCompare(b.nombre)); refreshCatalogUI(); toast('Actividad agregada a '+activeAreaName);
+  if(existing.error) { toast('No pude revisar el catálogo: '+existing.error.message); return null; }
+  if(existing.data){
+    ({data,error}=await sb.from('tipos_actividad').update({activo:true}).eq('id',existing.data.id).select().single());
+  } else {
+    ({data,error}=await sb.from('tipos_actividad').insert({nombre:name,activo:true,area_id:activeAreaId}).select().single());
+  }
+  if(error){ toast('No pude crear la actividad: '+error.message); return null; }
+  await loadCatalogs();
+  const created=activityTypes.find(x=>x.id===data.id)||data;
+  selectedActivityType=created;
+  if($('#activityType')) $('#activityType').value=created.id;
+  if($('#activitySearch')) $('#activitySearch').value=created.nombre;
+  if($('#activitySelectedLabel')) $('#activitySelectedLabel').textContent=`Seleccionada: ${created.nombre}`;
+  toast('Actividad creada en '+activeAreaName+' ♡');
+  return created;
+}
+
+async function addQuickActivityCatalog(){
+  const input=$('#quickNewActivityCatalog');
+  if(!input) return;
+  const created=await createActivityForArea(input.value);
+  if(created){ input.value=''; $('#activityResults')?.classList.remove('show'); }
+}
+
+async function addActivityCatalog(){
+  const input=$('#newActivityCatalog');
+  if(!input) return;
+  const created=await createActivityForArea(input.value);
+  if(created) input.value='';
 }
 
 async function startActivity(){

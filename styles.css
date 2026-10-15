@@ -103,3 +103,11 @@ body{background:#edf7f6}.bg-grid{background-image:linear-gradient(rgba(255,255,2
 .supervisor-note{font-size:10px;color:var(--cute-red);font-weight:900;margin-top:5px}.admin-hidden{display:none!important}
 @media(max-width:900px){.cute-hero{grid-template-columns:1fr}.daily-kpis{grid-template-columns:repeat(3,1fr)}}@media(max-width:620px){.cute-hero{padding:15px}.daily-kpis{grid-template-columns:1fr}.cute-copy h1{font-size:24px}.global-area-wrap{width:100%}.global-area-wrap select{min-width:0;flex:1}}
 @media(prefers-reduced-motion:reduce){.cloud,.live,.big-heart{animation:none!important}}
+
+/* V13.1 · creación rápida de actividades */
+.quick-activity-create{margin-top:10px;padding:10px;border:1px dashed #98bbb7;border-radius:10px;background:#f3fbfa}
+.quick-activity-create>span{display:block;margin-bottom:7px;font-size:10px;font-weight:900;color:#527774}
+.quick-activity-create-row{display:flex;gap:7px;align-items:center}
+.quick-activity-create-row input{min-width:0;flex:1}
+.quick-activity-create-row button{white-space:nowrap;background:#fff0f4;color:var(--cute-red);border:1px solid #d99aaa;font-weight:900}
+@media(max-width:620px){.quick-activity-create-row{flex-direction:column;align-items:stretch}.quick-activity-create-row button{width:100%}}
