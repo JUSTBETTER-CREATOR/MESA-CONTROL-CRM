@@ -942,11 +942,20 @@ function updatePersonalBuddy(){
   const img = document.getElementById('aiBuddyGif');
   if (!img || !currentAnalyst) return;
   const n = normalize(currentAnalyst.nombre || '');
-  if (n.includes('IRVING') || n.includes('VICENTE')) {
-    img.src = 'assets/coraje-irving-vicente.gif';
+  const speech = document.getElementById('aiSpeech');
+
+  if (n.includes('VICENTE')) {
+    img.src = 'vicente-jack-v1.gif?v=1';
+    img.alt = 'Jack animado';
+    if (speech) speech.innerHTML = '<b>AI Buddy:</b> modo Vicente activado 🎃🖤';
+  } else if (n.includes('IRVING') || n.includes('CHARLY')) {
+    img.src = 'coraje-equipo-v3.gif?v=3';
     img.alt = 'Coraje animado';
-    const speech = document.getElementById('aiSpeech');
     if (speech) speech.innerHTML = '<b>AI Buddy:</b> modo coraje activado 😤💗';
+  } else {
+    img.src = 'ternurin-buddy-v1.gif?v=1';
+    img.alt = 'Ternurín animado';
+    if (speech) speech.innerHTML = '<b>AI Buddy:</b> modo ternurín activado 🐱💗';
   }
 }
 
