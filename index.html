@@ -50,6 +50,7 @@
       <button class="tab" data-view="promotor">👤 Seguimientos por promotor</button>
       <button class="tab" data-view="estadisticas">📊 Estadísticas</button>
       <button class="tab" data-view="ranking">🏆 Ranking actividades</button>
+      <button class="tab" data-view="conectados">🟢 Conectados</button>
       <button class="tab" data-view="catalogos">📚 Mis actividades</button>
       <button class="tab" data-view="admin" id="adminTab">🛠 Administración</button>
     </nav>
@@ -216,6 +217,24 @@
         <div class="stats-grid">
           <div class="window"><div class="titlebar"><span>⏱ Tiempo por actividad</span><span>— □ ×</span></div><div class="window-body chartbox"><canvas id="activityChart"></canvas></div></div>
           <div class="window"><div class="titlebar"><span>🏪 Tiempo por tienda / región</span><span>— □ ×</span></div><div class="window-body"><div id="scopeStats"></div></div></div>
+        </div>
+      </section>
+
+
+      <section class="view" id="view-conectados">
+        <div class="window">
+          <div class="titlebar"><span>🟢 CONECTADOS AHORA</span><span>— □ ×</span></div>
+          <div class="window-body">
+            <div class="connected-toolbar">
+              <div>
+                <b id="connectedAreaTitle">Equipo conectado</b>
+                <small>El tiempo se cuenta desde que cada persona abrió el CRM. Si cierra el navegador y deja de enviar señal, se marcará como desconectada.</small>
+              </div>
+              <button id="refreshConnected" class="tiny-btn">↻ Actualizar</button>
+            </div>
+            <div id="connectedSummary" class="connected-summary">Cargando conexiones...</div>
+            <div id="connectedList" class="connected-list"></div>
+          </div>
         </div>
       </section>
 

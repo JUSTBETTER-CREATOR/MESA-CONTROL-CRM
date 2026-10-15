@@ -1,3 +1,9 @@
+
+function hasAngryGif(name){
+  const n = normalize(name || '');
+  return n.includes('VICENTE') || n.includes('IRVING');
+}
+
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const cfg = window.CRM_CONFIG || {};
@@ -99,6 +105,7 @@ async function init() {
 }
 
 function showLogin() {
+  stopPresenceTracking();
   currentUser = null;
   currentAnalyst = null;
   $('#loginScreen').classList.remove('hidden');
@@ -137,13 +144,14 @@ function bindTabs() {
     $('#view-' + b.dataset.view).classList.add('active');
     if (b.dataset.view === 'estadisticas') await renderStats();
     if (b.dataset.view === 'ranking') await renderRanking();
+    if (b.dataset.view === 'conectados') await renderConnected();
   });
 }
 
 function bindStaticEvents() {
   $('#loginBtn').onclick = login;
   $('#loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
-  $('#logoutBtn').onclick = async () => { await sb.auth.signOut(); if (realtimeChannel) sb.removeChannel(realtimeChannel); };
+  $('#logoutBtn').onclick = async () => { await markPresenceOffline(); await sb.auth.signOut(); if (realtimeChannel) sb.removeChannel(realtimeChannel); stopPresenceTracking(); };
 
   $('#activityType').onchange = e => $('#manualActivityWrap').classList.toggle('hidden', e.target.value !== '__manual');
   $('#activityScope').onchange = e => {
@@ -438,7 +446,7 @@ async function renderAll() {
 
 async function renderAnnouncements() {
   const { data, error } = await sb.from('anuncios')
-    .select('id,mensaje,created_at,activo,analistas(nombre)')
+    .select('id,mensaje,created_at,activo,analistas!actividades_analista_id_fkey(nombre)')
     .eq('activo', true)
     .order('created_at', { ascending:false });
   if (error) {
@@ -486,7 +494,7 @@ async function closeAnnouncement(id) {
 
 async function renderLive() {
   const { data, error } = await sb.from('actividades')
-    .select('id,inicio,notas,alcance,region,determinante,actividad_manual,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda,socio),actividad_asistentes(personas(nombre_completo))')
+    .select('id,inicio,notas,alcance,region,determinante,actividad_manual,analistas!actividades_analista_id_fkey(nombre),tipos_actividad(nombre),tiendas(nombre_tienda,socio),actividad_asistentes(personas(nombre_completo))')
     .eq('estatus','EN_CURSO').order('inicio',{ascending:false});
   if (error) return toast('En vivo: ' + error.message);
   const c = $('#liveCards');
@@ -512,7 +520,7 @@ async function renderRecentActivities() {
   inicioHoy.setHours(0, 0, 0, 0);
 
   const { data, error } = await sb.from('actividades')
-    .select('inicio,fin,region,determinante,actividad_manual,cierre,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
+    .select('inicio,fin,region,determinante,actividad_manual,cierre,analistas!actividades_analista_id_fkey(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
     .eq('estatus','FINALIZADA')
     .gte('fin', inicioHoy.toISOString())
     .order('fin',{ascending:false})
@@ -526,7 +534,7 @@ async function renderRecentActivities() {
 
 async function renderRecentFollowups() {
   const { data, error } = await sb.from('seguimientos')
-    .select('id,fecha,determinante,region,motivo,analistas(nombre),tipos_seguimiento(nombre),seguimiento_personas(personas(nombre_completo))')
+    .select('id,fecha,determinante,region,motivo,analistas!actividades_analista_id_fkey(nombre),tipos_seguimiento(nombre),seguimiento_personas(personas(nombre_completo))')
     .order('fecha',{ascending:false}).limit(10);
   if (error) return;
   $('#recentFollowups').innerHTML = (data||[]).map(x => {
@@ -626,7 +634,7 @@ async function renderRanking() {
   // Traemos actividades terminadas y en curso para que el ranking tenga también
   // un historial desplegable de lo que cada analista va haciendo.
   let q = sb.from('actividades')
-    .select('id,inicio,fin,estatus,determinante,region,actividad_manual,notas,cierre,analista_id,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
+    .select('id,inicio,fin,estatus,determinante,region,actividad_manual,notas,cierre,analista_id,analistas!actividades_analista_id_fkey(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)')
     .order('inicio',{ascending:false})
     .limit(10000);
 
@@ -848,6 +856,7 @@ function subscribeRealtime() {
     .on('postgres_changes',{event:'*',schema:'public',table:'actividades'},async()=>{ await renderLive(); await renderRecentActivities(); if ($('#view-ranking')?.classList.contains('active')) await renderRanking(); })
     .on('postgres_changes',{event:'*',schema:'public',table:'seguimientos'},async()=>{ await renderRecentFollowups(); if(selectedPromoter) await renderPromoter(); })
     .on('postgres_changes',{event:'*',schema:'public',table:'anuncios'},async()=>{ await renderAnnouncements(); })
+    .on('postgres_changes',{event:'*',schema:'public',table:'crm_presence'},async()=>{ if ($('#view-conectados')?.classList.contains('active')) await renderConnected(); })
     .subscribe();
   setInterval(() => { if (currentUser) renderLive(); }, 20000);
 }
@@ -863,6 +872,9 @@ let activeAreaKey = null;
 let activeAreaName = null;
 let selectedActivityType = null;
 let v13Bound = false;
+let presenceHeartbeat = null;
+let presenceRefreshTimer = null;
+
 
 const isGlobal = () => normalize(currentAnalyst?.rol) === 'GLOBAL' || currentAnalyst?.es_global === true;
 const isSupervisor = () => ['SUPERVISOR','ADMIN_AREA','GLOBAL'].includes(normalize(currentAnalyst?.rol));
@@ -920,10 +932,13 @@ async function enterApp(user) {
   applyRoleUI();
   setupV13UI();
   await loadCatalogs(); await renderAll(); await renderDailyKpis(); subscribeRealtime();
+  await startPresenceTracking();
 }
 
 function setupV13UI() {
   if (v13Bound) return; v13Bound=true;
+  $('#refreshConnected')?.addEventListener('click', renderConnected);
+
   $('#globalAreaSelect')?.addEventListener('change', async e=>{
     const a=crmAreas.find(x=>x.id===e.target.value); if(!a) return;
     activeAreaId=a.id;activeAreaKey=a.clave;activeAreaName=a.nombre;
@@ -931,6 +946,7 @@ function setupV13UI() {
     $('#welcomeSubtitle').textContent=`Vista global · revisando ${activeAreaName}`;
     selectedActivityType=null; await loadCatalogs(); await renderAll(); await renderDailyKpis();
     if ($('#view-ranking')?.classList.contains('active')) await renderRanking();
+    if ($('#view-conectados')?.classList.contains('active')) await renderConnected();
   });
   $('#activitySearch')?.addEventListener('input', renderActivitySearch);
   $('#activitySearch')?.addEventListener('focus', renderActivitySearch);
@@ -1045,7 +1061,7 @@ function canFinishActivity(act){
 }
 
 async function finishMine(activityId=null){
-  let q=sb.from('actividades').select('id,inicio,determinante,region,actividad_manual,notas,analista_id,area_id,analistas(nombre),tipos_actividad(nombre)').eq('estatus','EN_CURSO');
+  let q=sb.from('actividades').select('id,inicio,determinante,region,actividad_manual,notas,analista_id,area_id,analistas!actividades_analista_id_fkey(nombre),tipos_actividad(nombre)').eq('estatus','EN_CURSO');
   if(activityId) q=q.eq('id',activityId); else q=q.eq('analista_id',currentAnalyst.id).order('inicio',{ascending:false}).limit(1);
   const {data,error}=activityId?await q.maybeSingle():await q.maybeSingle(); if(error)return toast(error.message); if(!data)return toast('No encontré una actividad activa'); if(!canFinishActivity(data))return toast('No tienes permiso para finalizar esta actividad');
   pendingFinishActivity=data; const type=data.tipos_actividad?.nombre||data.actividad_manual||'ACTIVIDAD'; const owner=data.analistas?.nombre||'Equipo'; const place=data.determinante?`Tienda ${data.determinante}`:(data.region||'General');
@@ -1064,7 +1080,7 @@ async function confirmFinishActivity(){
 }
 
 async function renderLive(){
-  let q=sb.from('actividades').select('id,inicio,notas,alcance,region,determinante,actividad_manual,analista_id,area_id,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda,socio),actividad_asistentes(personas(nombre_completo))').eq('estatus','EN_CURSO').order('inicio',{ascending:false});
+  let q=sb.from('actividades').select('id,inicio,notas,alcance,region,determinante,actividad_manual,analista_id,area_id,analistas!actividades_analista_id_fkey(nombre),tipos_actividad(nombre),tiendas(nombre_tienda,socio),actividad_asistentes(personas(nombre_completo))').eq('estatus','EN_CURSO').order('inicio',{ascending:false});
   if(activeAreaId) q=q.eq('area_id',activeAreaId); const {data,error}=await q;if(error)return toast('En vivo: '+error.message); const c=$('#liveCards');
   c.innerHTML=(data||[]).map(x=>{const attendees=(x.actividad_asistentes||[]).map(a=>a.personas?.nombre_completo).filter(Boolean);const type=x.tipos_actividad?.nombre||x.actividad_manual||'ACTIVIDAD';const place=x.determinante?`🏪 ${esc(x.determinante)}${x.tiendas?.nombre_tienda?' — '+esc(x.tiendas.nombre_tienda):''}`:(x.region?`📍 ${esc(x.region)}`:'');const analystName=x.analistas?.nombre||'';const can=canFinishActivity(x);const sup=can&&x.analista_id!==currentAnalyst.id;return `<div class="card analyst-card" style="${analystVars(analystName)}"><span class="badge analyst-badge">🟢 EN CURSO</span><h3><span class="analyst-dot"></span>${esc(analystName)}</h3><b>${esc(type)}</b>${place?`<div class="meta">${place}</div>`:''}${attendees.length?`<div class="meta">👥 ${attendees.length} asistentes</div>`:''}<div class="meta">Desde ${fmt(x.inicio)}</div>${x.notas?`<div class="meta">📝 ${esc(x.notas)}</div>`:''}${can?`<button class="finish-card-btn" data-finish-id="${x.id}">✅ ${sup?'Finalizar como supervisora':'Finalizar actividad'}</button>`:''}</div>`}).join('');
   c.querySelectorAll('[data-finish-id]').forEach(btn=>btn.onclick=()=>finishMine(btn.dataset.finishId)); $('#liveEmpty').style.display=data?.length?'none':'block';
@@ -1072,7 +1088,7 @@ async function renderLive(){
 
 function localDayStart(){const d=new Date();d.setHours(0,0,0,0);return d}
 async function renderRecentActivities(){
-  let q=sb.from('actividades').select('inicio,fin,region,determinante,actividad_manual,cierre,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda),finalizada_por_supervisor').eq('estatus','FINALIZADA').gte('fin',localDayStart().toISOString()).order('fin',{ascending:false}).limit(50); if(activeAreaId)q=q.eq('area_id',activeAreaId); const {data,error}=await q;if(error)return;
+  let q=sb.from('actividades').select('inicio,fin,region,determinante,actividad_manual,cierre,analistas!actividades_analista_id_fkey(nombre),tipos_actividad(nombre),tiendas(nombre_tienda),finalizada_por_supervisor').eq('estatus','FINALIZADA').gte('fin',localDayStart().toISOString()).order('fin',{ascending:false}).limit(50); if(activeAreaId)q=q.eq('area_id',activeAreaId); const {data,error}=await q;if(error)return;
   $('#recentActivities').innerHTML=(data||[]).map(x=>{const n=x.analistas?.nombre||'';return `<div class="event finished-event analyst-event" style="${analystVars(n)}"><div class="row"><b><span class="analyst-dot"></span>✅ ${esc(n)} · ${esc(x.tipos_actividad?.nombre||x.actividad_manual||'ACTIVIDAD')}</b><span class="badge badge-done">FINALIZADA</span></div><div class="meta">${fmt(x.inicio)} → ${fmt(x.fin)} · <b>${x.fin?mins(x.inicio,x.fin)+' min':''}</b> · ${esc(x.determinante||x.region||'GENERAL')}</div>${x.cierre?`<div class="close-note">📝 ${esc(x.cierre)}</div>`:''}</div>`}).join('')||'<div class="empty">Sin actividades finalizadas hoy.</div>';
 }
 
@@ -1094,7 +1110,7 @@ async function saveFollowup(){
 async function renderRecentFollowups(){let q=sb.from('seguimientos').select('id,fecha,determinante,region,motivo,analistas(nombre),tipos_seguimiento(nombre),seguimiento_personas(personas(nombre_completo))').order('fecha',{ascending:false}).limit(10);if(activeAreaId)q=q.eq('area_id',activeAreaId);const {data,error}=await q;if(error)return;$('#recentFollowups').innerHTML=(data||[]).map(x=>{const names=(x.seguimiento_personas||[]).map(p=>p.personas?.nombre_completo).filter(Boolean).join(', '),n=x.analistas?.nombre||'';return `<div class="event analyst-event" style="${analystVars(n)}"><div class="row"><b>${esc(names||'Promotor')} · ${esc(x.tipos_seguimiento?.nombre||'SEGUIMIENTO')}</b><small>${fmt(x.fecha)}</small></div><small><span class="analyst-dot"></span>${esc(n)} · ${esc(x.determinante||x.region||'')}</small></div>`}).join('')||'<div class="empty">Sin seguimientos todavía.</div>'}
 
 async function renderRanking(){
-  const box=$('#activityRanking');if(!box)return;const from=localDayStart().toISOString();let q=sb.from('actividades').select('id,inicio,fin,estatus,determinante,region,actividad_manual,notas,cierre,analista_id,analistas(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)').gte('inicio',from).order('inicio',{ascending:false});if(activeAreaId)q=q.eq('area_id',activeAreaId);const {data,error}=await q;if(error){box.innerHTML=`<div class="empty">${esc(error.message)}</div>`;return}const all=data||[],done=all.filter(a=>a.estatus==='FINALIZADA'&&a.fin),by={};for(const a of all){const n=a.analistas?.nombre||'SIN ANALISTA';if(!by[n])by[n]={name:n,count:0,minutes:0,last:null,activities:[]};by[n].activities.push(a);if(a.estatus==='FINALIZADA'&&a.fin){by[n].count++;by[n].minutes+=mins(a.inicio,a.fin);if(!by[n].last||new Date(a.fin)>new Date(by[n].last))by[n].last=a.fin}}const rows=Object.values(by).sort((a,b)=>b.count-a.count||b.minutes-a.minutes);$('#rankingSummary').innerHTML=`<b>${done.length}</b> actividades finalizadas hoy · <b>${rows.length}</b> integrantes con actividad`;if(!rows.length){box.innerHTML='<div class="empty">Todavía no hay actividad hoy.</div>';return}const max=Math.max(1,...rows.map(x=>x.count));box.innerHTML=rows.map((x,i)=>{const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`,avg=x.count?Math.round(x.minutes/x.count):0;const history=x.activities.map(a=>{const type=a.tipos_actividad?.nombre||a.actividad_manual||'ACTIVIDAD',place=a.determinante?`🏪 ${esc(a.determinante)}${a.tiendas?.nombre_tienda?' — '+esc(a.tiendas.nombre_tienda):''}`:(a.region?`📍 ${esc(a.region)}`:'GENERAL'),done=a.estatus==='FINALIZADA',duration=done&&a.fin?`${mins(a.inicio,a.fin)} min`:'en curso';return `<div class="ranking-history-item ${done?'is-done':'is-live'}"><div class="ranking-history-main"><span class="ranking-history-status">${done?'✅ FINALIZADA':'🟢 EN CURSO'}</span><b>${esc(type)}</b><small>${place}</small></div><div class="ranking-history-time"><span>${fmt(a.inicio)}${done&&a.fin?' → '+fmt(a.fin):''}</span><b>${duration}</b></div>${a.notas?`<div class="ranking-history-note">📝 ${esc(a.notas)}</div>`:''}${a.cierre?`<div class="ranking-history-close">✔ ${esc(a.cierre)}</div>`:''}</div>`}).join('');return `<div class="ranking-card" style="${analystVars(x.name)}"><div class="ranking-row"><div class="ranking-place">${medal}</div><div class="ranking-person"><span class="analyst-dot"></span><b>${esc(x.name)}</b><small>Última finalizada: ${fmt(x.last)}</small></div><div class="ranking-progress"><div class="ranking-bar"><span style="width:${Math.max(6,Math.round(x.count/max*100))}%"></span></div></div><div class="ranking-count"><strong>${x.count}</strong><small>finalizadas</small></div><div class="ranking-time"><strong>${(x.minutes/60).toFixed(1)} h</strong><small>${avg} min prom.</small></div></div><div class="ranking-actions"><button class="tiny-btn ranking-toggle" data-ranking-toggle="${i}">📋 Ver actividades (${x.activities.length})</button></div><div class="ranking-history hidden" data-ranking-history="${i}">${history}</div></div>`}).join('');box.querySelectorAll('[data-ranking-toggle]').forEach(btn=>btn.onclick=()=>{const panel=box.querySelector(`[data-ranking-history="${btn.dataset.rankingToggle}"]`);const opening=panel.classList.contains('hidden');panel.classList.toggle('hidden');btn.textContent=opening?'▲ Ocultar actividades':`📋 Ver actividades (${panel.children.length})`})
+  const box=$('#activityRanking');if(!box)return;const from=localDayStart().toISOString();let q=sb.from('actividades').select('id,inicio,fin,estatus,determinante,region,actividad_manual,notas,cierre,analista_id,analistas!actividades_analista_id_fkey(nombre),tipos_actividad(nombre),tiendas(nombre_tienda)').gte('inicio',from).order('inicio',{ascending:false});if(activeAreaId)q=q.eq('area_id',activeAreaId);const {data,error}=await q;if(error){box.innerHTML=`<div class="empty">${esc(error.message)}</div>`;return}const all=data||[],done=all.filter(a=>a.estatus==='FINALIZADA'&&a.fin),by={};for(const a of all){const n=a.analistas?.nombre||'SIN ANALISTA';if(!by[n])by[n]={name:n,count:0,minutes:0,last:null,activities:[]};by[n].activities.push(a);if(a.estatus==='FINALIZADA'&&a.fin){by[n].count++;by[n].minutes+=mins(a.inicio,a.fin);if(!by[n].last||new Date(a.fin)>new Date(by[n].last))by[n].last=a.fin}}const rows=Object.values(by).sort((a,b)=>b.count-a.count||b.minutes-a.minutes);$('#rankingSummary').innerHTML=`<b>${done.length}</b> actividades finalizadas hoy · <b>${rows.length}</b> integrantes con actividad`;if(!rows.length){box.innerHTML='<div class="empty">Todavía no hay actividad hoy.</div>';return}const max=Math.max(1,...rows.map(x=>x.count));box.innerHTML=rows.map((x,i)=>{const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`,avg=x.count?Math.round(x.minutes/x.count):0;const history=x.activities.map(a=>{const type=a.tipos_actividad?.nombre||a.actividad_manual||'ACTIVIDAD',place=a.determinante?`🏪 ${esc(a.determinante)}${a.tiendas?.nombre_tienda?' — '+esc(a.tiendas.nombre_tienda):''}`:(a.region?`📍 ${esc(a.region)}`:'GENERAL'),done=a.estatus==='FINALIZADA',duration=done&&a.fin?`${mins(a.inicio,a.fin)} min`:'en curso';return `<div class="ranking-history-item ${done?'is-done':'is-live'}"><div class="ranking-history-main"><span class="ranking-history-status">${done?'✅ FINALIZADA':'🟢 EN CURSO'}</span><b>${esc(type)}</b><small>${place}</small></div><div class="ranking-history-time"><span>${fmt(a.inicio)}${done&&a.fin?' → '+fmt(a.fin):''}</span><b>${duration}</b></div>${a.notas?`<div class="ranking-history-note">📝 ${esc(a.notas)}</div>`:''}${a.cierre?`<div class="ranking-history-close">✔ ${esc(a.cierre)}</div>`:''}</div>`}).join('');return `<div class="ranking-card" style="${analystVars(x.name)}"><div class="ranking-row"><div class="ranking-place">${medal}</div><div class="ranking-person"><span class="analyst-dot"></span><b>${esc(x.name)}</b><small>Última finalizada: ${fmt(x.last)}</small></div><div class="ranking-progress"><div class="ranking-bar"><span style="width:${Math.max(6,Math.round(x.count/max*100))}%"></span></div></div><div class="ranking-count"><strong>${x.count}</strong><small>finalizadas</small></div><div class="ranking-time"><strong>${(x.minutes/60).toFixed(1)} h</strong><small>${avg} min prom.</small></div></div><div class="ranking-actions"><button class="tiny-btn ranking-toggle" data-ranking-toggle="${i}">📋 Ver actividades (${x.activities.length})</button></div><div class="ranking-history hidden" data-ranking-history="${i}">${history}</div></div>`}).join('');box.querySelectorAll('[data-ranking-toggle]').forEach(btn=>btn.onclick=()=>{const panel=box.querySelector(`[data-ranking-history="${btn.dataset.rankingToggle}"]`);const opening=panel.classList.contains('hidden');panel.classList.toggle('hidden');btn.textContent=opening?'▲ Ocultar actividades':`📋 Ver actividades (${panel.children.length})`})
 }
 
 async function renderStats(){let q=sb.from('actividades').select('inicio,fin,determinante,region,actividad_manual,tipos_actividad(nombre)').eq('estatus','FINALIZADA').not('fin','is',null).order('fin',{ascending:false}).limit(3000);if(activeAreaId)q=q.eq('area_id',activeAreaId);const {data,error}=await q;if(error)return toast('Estadísticas: '+error.message);const byAct={},byScope={};for(const x of(data||[])){const m=mins(x.inicio,x.fin),name=x.tipos_actividad?.nombre||x.actividad_manual||'OTRA';byAct[name]=(byAct[name]||0)+m;const scope=x.determinante?`Tienda ${x.determinante}`:(x.region||'General');byScope[scope]=(byScope[scope]||0)+m}const labels=Object.keys(byAct).sort((a,b)=>byAct[b]-byAct[a]),values=labels.map(x=>byAct[x]);if(chart)chart.destroy();chart=new Chart($('#activityChart'),{type:'pie',data:{labels,datasets:[{data:values}]},options:{responsive:true,maintainAspectRatio:false}});const top=Object.entries(byScope).sort((a,b)=>b[1]-a[1]).slice(0,20),max=top[0]?.[1]||1;$('#scopeStats').innerHTML=top.map(([k,v])=>`<div class="barrow"><span>${esc(k)}</span><div class="bar"><span style="width:${Math.round(v/max*100)}%"></span></div><b>${(v/60).toFixed(1)} h</b></div>`).join('')||'<div class="empty">Aún no hay actividades finalizadas.</div>'}
@@ -1110,6 +1126,142 @@ function bindPersonSearch(input,res,callback,filterFn){
   input.oninput=()=>{const arr=filterFn?filterFn(input.value):searchPeople(input.value);res.innerHTML=arr.map((p,i)=>`<div class="result" data-i="${i}"><b>${esc(p.nombre_completo)}</b><small>${esc(p.estatus||'')} · ${esc(p.determinante||'SIN TIENDA')} · ${esc(p.region||'')}</small></div>`).join('')+(isMesa()?`<div class="result" data-manual="1"><b>+ Agregar manualmente “${esc(input.value.trim().toUpperCase()||'PERSONA')}”</b><small>Solo Mesa de Control administra personas.</small></div>`:'');res.classList.add('show');[...res.querySelectorAll('[data-i]')].forEach(el=>el.onclick=()=>{callback(arr[+el.dataset.i]);res.classList.remove('show');if(input!==$('#fuPerson')&&input!==$('#promoterSearch'))input.value='' });const m=res.querySelector('[data-manual]');if(m)m.onclick=async()=>{const n=normalize(input.value||prompt('Nombre completo:')||'');if(!n)return;const p=await createManualPerson(n);if(!p)return;callback(p);res.classList.remove('show')}};input.onfocus=()=>{if(input.value)input.oninput()}
 }
 
-function subscribeRealtime(){if(realtimeChannel)sb.removeChannel(realtimeChannel);realtimeChannel=sb.channel('better-control-live').on('postgres_changes',{event:'*',schema:'public',table:'actividades'},async()=>{await renderLive();await renderRecentActivities();await renderDailyKpis();if($('#view-ranking')?.classList.contains('active'))await renderRanking()}).on('postgres_changes',{event:'*',schema:'public',table:'seguimientos'},async()=>{await renderRecentFollowups();if(selectedPromoter)await renderPromoter()}).on('postgres_changes',{event:'*',schema:'public',table:'anuncios'},renderAnnouncements).subscribe()}
+
+function formatConnectedDuration(from, to=new Date()) {
+  if (!from) return '—';
+  const ms = Math.max(0, to - new Date(from));
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    const rh = h % 24;
+    return `${d} d ${rh} h`;
+  }
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+
+function stopPresenceTracking() {
+  if (presenceHeartbeat) clearInterval(presenceHeartbeat);
+  if (presenceRefreshTimer) clearInterval(presenceRefreshTimer);
+  presenceHeartbeat = null;
+  presenceRefreshTimer = null;
+}
+
+async function startPresenceTracking() {
+  stopPresenceTracking();
+  // Ingrid es GLOBAL y no pertenece a un área operativa; no se cuenta dentro del equipo de un área.
+  if (!currentAnalyst?.id || !currentAnalyst?.area_id || isGlobal()) return;
+
+  const now = new Date();
+  const { data: existing } = await sb
+    .from('crm_presence')
+    .select('connected_at,last_seen,is_online')
+    .eq('analista_id', currentAnalyst.id)
+    .maybeSingle();
+
+  const last = existing?.last_seen ? new Date(existing.last_seen) : null;
+  const stale = !last || (now - last) > 120000 || existing?.is_online === false;
+  const payload = {
+    analista_id: currentAnalyst.id,
+    area_id: currentAnalyst.area_id,
+    last_seen: now.toISOString(),
+    is_online: true
+  };
+  if (stale || !existing?.connected_at) payload.connected_at = now.toISOString();
+
+  const { error } = await sb.from('crm_presence').upsert(payload, { onConflict: 'analista_id' });
+  if (error) console.warn('Presence:', error.message);
+
+  presenceHeartbeat = setInterval(async () => {
+    if (!currentAnalyst?.id) return;
+    await sb.from('crm_presence')
+      .update({ last_seen: new Date().toISOString(), is_online: true })
+      .eq('analista_id', currentAnalyst.id);
+  }, 30000);
+
+  presenceRefreshTimer = setInterval(() => {
+    if ($('#view-conectados')?.classList.contains('active')) renderConnected();
+  }, 30000);
+}
+
+async function markPresenceOffline() {
+  if (!currentAnalyst?.id || isGlobal()) return;
+  try {
+    await sb.from('crm_presence')
+      .update({ last_seen: new Date().toISOString(), is_online: false })
+      .eq('analista_id', currentAnalyst.id);
+  } catch (_) {}
+}
+
+async function renderConnected() {
+  const box = $('#connectedList');
+  const summary = $('#connectedSummary');
+  if (!box || !summary) return;
+
+  $('#connectedAreaTitle').textContent = isGlobal()
+    ? `Conectados · ${activeAreaName || 'Área'}`
+    : `Conectados · ${activeAreaName || 'Mi área'}`;
+
+  let aq = sb.from('analistas')
+    .select('id,nombre,rol,activo,area_id')
+    .eq('activo', true)
+    .order('nombre');
+  if (activeAreaId) aq = aq.eq('area_id', activeAreaId);
+
+  let pq = sb.from('crm_presence')
+    .select('analista_id,area_id,connected_at,last_seen,is_online');
+  if (activeAreaId) pq = pq.eq('area_id', activeAreaId);
+
+  const [{ data: analysts, error: aErr }, { data: presences, error: pErr }] = await Promise.all([aq, pq]);
+  if (aErr || pErr) {
+    box.innerHTML = `<div class="empty">${esc((aErr || pErr).message)}</div>`;
+    summary.textContent = 'No pude leer las conexiones.';
+    return;
+  }
+
+  const now = new Date();
+  const pmap = new Map((presences || []).map(p => [p.analista_id, p]));
+  const rows = (analysts || []).map(a => {
+    const p = pmap.get(a.id);
+    const last = p?.last_seen ? new Date(p.last_seen) : null;
+    const online = !!(p?.is_online && last && (now - last) <= 90000);
+    return { ...a, presence: p, online, last };
+  }).sort((a,b) => Number(b.online)-Number(a.online) || a.nombre.localeCompare(b.nombre));
+
+  const onlineCount = rows.filter(x => x.online).length;
+  summary.innerHTML = `<b>${onlineCount}</b> conectados ahora · <b>${rows.length}</b> integrantes en ${esc(activeAreaName || 'el área')}`;
+
+  if (!rows.length) {
+    box.innerHTML = '<div class="empty">No hay integrantes en esta área.</div>';
+    return;
+  }
+
+  box.innerHTML = rows.map(r => {
+    const p = r.presence;
+    const role = normalize(r.rol)==='SUPERVISOR' ? 'SUPERVISORA' : normalize(r.rol)==='GLOBAL' ? 'COORDINADORA' : 'USUARIO';
+    const duration = r.online ? formatConnectedDuration(p?.connected_at, now) : '—';
+    const since = r.online && p?.connected_at ? new Date(p.connected_at).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '—';
+    const lastSeen = r.last ? r.last.toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}) : 'Sin registro';
+    return `
+      <div class="connected-card ${r.online ? 'is-online' : 'is-offline'}" style="${analystVars(r.nombre)}">
+        <div class="connected-avatar">${esc(String(r.nombre||'?').charAt(0))}</div>
+        <div class="connected-person">
+          <div class="connected-name">
+            <span class="presence-dot"></span>
+            <b>${esc(r.nombre)}</b>
+            ${hasAngryGif(r.nombre) ? `<img class="angry-gif" src="assets/angry-buddy.gif" alt="Coraje">` : ``}
+          </div>
+          <small>${esc(role)}</small>
+        </div>
+        <div class="connected-time">
+          <strong>${r.online ? esc(duration) : 'Desconectado'}</strong>
+          <small>${r.online ? `desde ${esc(since)}` : `última señal: ${esc(lastSeen)}`}</small>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function subscribeRealtime(){if(realtimeChannel)sb.removeChannel(realtimeChannel);realtimeChannel=sb.channel('better-control-live').on('postgres_changes',{event:'*',schema:'public',table:'actividades'},async()=>{await renderLive();await renderRecentActivities();await renderDailyKpis();if($('#view-ranking')?.classList.contains('active'))await renderRanking()}).on('postgres_changes',{event:'*',schema:'public',table:'seguimientos'},async()=>{await renderRecentFollowups();if(selectedPromoter)await renderPromoter()}).on('postgres_changes',{event:'*',schema:'public',table:'anuncios'},renderAnnouncements).on('postgres_changes',{event:'*',schema:'public',table:'crm_presence'},async()=>{if($('#view-conectados')?.classList.contains('active'))await renderConnected()}).subscribe()}
 
 init();

@@ -111,3 +111,38 @@ body{background:#edf7f6}.bg-grid{background-image:linear-gradient(rgba(255,255,2
 .quick-activity-create-row input{min-width:0;flex:1}
 .quick-activity-create-row button{white-space:nowrap;background:#fff0f4;color:var(--cute-red);border:1px solid #d99aaa;font-weight:900}
 @media(max-width:620px){.quick-activity-create-row{flex-direction:column;align-items:stretch}.quick-activity-create-row button{width:100%}}
+
+
+/* ===== V13.3 · CONECTADOS ===== */
+.connected-toolbar{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:11px 12px;background:#eef9f7;border:1px solid #b7dcd7;border-radius:10px}
+.connected-toolbar>div{display:flex;flex-direction:column;gap:4px}.connected-toolbar small{color:#6f7e80;max-width:720px}
+.connected-summary{margin:12px 0;padding:10px 12px;border:1px solid #e4d4da;background:#fff7fa;border-radius:9px;color:#67545a}
+.connected-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.connected-card{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:11px;align-items:center;padding:12px 13px;border:2px solid var(--analyst-border);border-radius:12px;background:linear-gradient(90deg,var(--analyst-bg),#fff 65%);box-shadow:3px 4px 0 color-mix(in srgb,var(--analyst-border) 16%,transparent)}
+.connected-card.is-offline{opacity:.62;filter:saturate(.55)}
+.connected-avatar{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--analyst-soft);color:var(--analyst-strong);font-size:18px;font-weight:900;border:1px solid var(--analyst-border)}
+.connected-person{min-width:0}.connected-name{display:flex;align-items:center;gap:7px}.connected-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--analyst-strong)}.connected-person small{display:block;margin-top:3px;color:#778387;font-size:10px;font-weight:800}
+.presence-dot{width:9px;height:9px;border-radius:50%;background:#9ba5a6;flex:0 0 auto}.is-online .presence-dot{background:#4fbd86;box-shadow:0 0 0 0 rgba(79,189,134,.4);animation:presencePulse 1.8s infinite}
+.connected-time{text-align:right;display:flex;flex-direction:column;gap:3px}.connected-time strong{font-size:16px;color:#2b5e57}.is-offline .connected-time strong{font-size:12px;color:#727b7d}.connected-time small{font-size:10px;color:#788386}
+@keyframes presencePulse{70%{box-shadow:0 0 0 8px rgba(79,189,134,0)}100%{box-shadow:0 0 0 0 rgba(79,189,134,0)}}
+@media(max-width:850px){.connected-list{grid-template-columns:1fr}}
+@media(max-width:560px){.connected-toolbar{flex-direction:column}.connected-card{grid-template-columns:42px 1fr}.connected-time{grid-column:2;text-align:left}}
+
+
+/* V13.4 · GIF de coraje para Vicente e Irving */
+.angry-gif{
+  width:28px;
+  height:28px;
+  object-fit:contain;
+  image-rendering:auto;
+  vertical-align:middle;
+  margin-left:6px;
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.18));
+}
+.angry-gif.inline{
+  width:24px;
+  height:24px;
+}
+.connected-name{
+  flex-wrap:wrap;
+}
