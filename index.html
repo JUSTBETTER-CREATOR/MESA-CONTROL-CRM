@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mesa de Control CRM</title>
+  <title>BETTER CONTROL · Multiárea</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -14,11 +14,11 @@
 
   <div id="loginScreen" class="login-screen">
     <div class="login-window window">
-      <div class="titlebar"><span>🔐 Mesa de Control · Acceso</span><span>— □ ×</span></div>
+      <div class="titlebar"><span>🔐 BETTER CONTROL · Acceso</span><span>— □ ×</span></div>
       <div class="window-body">
         <div class="login-computer">🖥️</div>
         <h1>Bienvenida</h1>
-        <p class="muted">Entra con tu cuenta de Mesa de Control.</p>
+        <p class="muted">Entra con tu cuenta. El sistema detectará automáticamente tu área y tus permisos.</p>
         <label>Correo
           <input id="loginEmail" type="email" autocomplete="username" placeholder="tu.correo@empresa.com" />
         </label>
@@ -33,9 +33,11 @@
 
   <div id="appShell" class="hidden">
     <header class="topbar">
-      <div class="brand">🖥️ <b>Mesa de Control</b><span>CRM</span></div>
+      <div class="brand">☁️ <b>BETTER CONTROL</b><span>multiárea</span></div>
       <div class="top-user">
         <span id="whoAmI"></span>
+        <span id="roleBadge" class="role-badge"></span>
+        <label id="globalAreaWrap" class="global-area-wrap hidden">Área <select id="globalAreaSelect"></select></label>
         <span class="clock" id="clock"></span>
         <button id="logoutBtn" class="tiny-btn">Salir</button>
       </div>
@@ -48,11 +50,26 @@
       <button class="tab" data-view="promotor">👤 Seguimientos por promotor</button>
       <button class="tab" data-view="estadisticas">📊 Estadísticas</button>
       <button class="tab" data-view="ranking">🏆 Ranking actividades</button>
-      <button class="tab" data-view="catalogos">⚙ Catálogos</button>
+      <button class="tab" data-view="catalogos">📚 Mis actividades</button>
+      <button class="tab" data-view="admin" id="adminTab">🛠 Administración</button>
     </nav>
 
     <main>
       <section class="view active" id="view-inicio">
+        <div class="cute-hero">
+          <div class="cloud cloud-a"></div><div class="cloud cloud-b"></div><div class="cloud cloud-c"></div>
+          <div class="cute-copy">
+            <div class="cute-kicker">BETTER CONTROL.EXE ✧</div>
+            <h1 id="welcomeTitle">Hola ♡</h1>
+            <p id="welcomeSubtitle">Tu centro operativo de hoy.</p>
+            <div class="daily-kpis"><div><strong id="kpiPeople">—</strong><span>PERSONAS</span></div><div><strong id="kpiLive">—</strong><span>EN CURSO</span></div><div><strong id="kpiDone">—</strong><span>FINALIZADAS HOY</span></div></div>
+          </div>
+          <div class="ai-buddy">
+            <div class="ai-buddy-title"><span>AI_BUDDY.GIF</span><span>● ONLINE</span></div>
+            <img src="assets/cute-ai.gif" alt="Asistente cute animado" />
+            <div id="aiBuddyMessage" class="ai-buddy-message"><b>AI Buddy:</b> Todo va bien por aquí ✨</div>
+          </div>
+        </div>
         <div class="window announcement-window">
           <div class="titlebar"><span>📣 ANUNCIOS</span><span>— □ ×</span></div>
           <div class="window-body">
@@ -62,7 +79,7 @@
               </label>
               <div class="announcement-actions">
                 <button id="publishAnnouncement" class="primary">📣 Publicar anuncio</button>
-                <small>Solo MARIELA puede publicar o cerrar anuncios.</small>
+                <label id="globalAnnouncementWrap" class="global-announcement hidden"><input id="announcementGlobal" type="checkbox" /> 🌐 Anuncio global</label><small>Las supervisoras publican en su área. Ingrid puede publicar anuncios globales.</small>
               </div>
             </div>
             <div id="announcementsList" class="announcements-list"></div>
@@ -96,7 +113,12 @@
               <input id="activityOwner" readonly />
             </label>
             <label>Actividad
-              <select id="activityType"></select>
+              <div class="activity-picker">
+                <input id="activitySearch" autocomplete="off" placeholder="🔎 Buscar actividad..." />
+                <div id="activityResults" class="search-results activity-results"></div>
+                <select id="activityType" class="hidden" aria-hidden="true"></select>
+              </div>
+              <small id="activitySelectedLabel">Busca y selecciona una actividad de tu área.</small>
             </label>
             <label id="manualActivityWrap" class="hidden">Actividad manual
               <input id="manualActivity" placeholder="Ej. Revisión de remesas especiales" />
@@ -173,16 +195,9 @@
             <div class="ranking-toolbar">
               <div>
                 <b>¿Quién va terminando más actividades?</b>
-                <div class="muted">Cuenta únicamente actividades con estado FINALIZADA.</div>
+                <div class="muted">Cuenta únicamente actividades FINALIZADAS del día dentro del área activa.</div>
               </div>
-              <label>Periodo
-                <select id="rankingPeriod">
-                  <option value="today">Hoy</option>
-                  <option value="week" selected>Esta semana</option>
-                  <option value="month">Este mes</option>
-                  <option value="all">Todo el historial</option>
-                </select>
-              </label>
+              <div class="today-only">HOY · se reinicia diariamente</div>
             </div>
             <div class="ranking-summary" id="rankingSummary"></div>
             <div id="activityRanking" class="activity-ranking"></div>
@@ -198,11 +213,24 @@
       </section>
 
       <section class="view" id="view-catalogos">
+        <div class="window large">
+          <div class="titlebar"><span>📚 Catálogo de actividades del área</span><span>— □ ×</span></div>
+          <div class="window-body">
+            <p class="muted">Cada área construye su propio catálogo. Las actividades de otras áreas no aparecen aquí.</p>
+            <div class="inline"><input id="newActivityCatalog" placeholder="Nueva actividad"/><button id="addActivityCatalog">+ Agregar</button></div>
+            <div class="catalog-search-wrap"><input id="catalogActivitySearch" placeholder="🔎 Buscar en el catálogo..." /></div>
+            <div id="activityCatalogChips" class="chips catalog-chips"></div>
+            <div id="activityCatalogEmpty" class="empty">Tu área todavía no tiene actividades. Crea la primera ♡</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-admin">
         <div class="grid-2">
           <div class="window">
             <div class="titlebar"><span>👥 Actualizar ASISTENCIA</span><span>— □ ×</span></div>
             <div class="window-body">
-              <p>Sube el archivo nuevo cuando cambie. Las personas que ya no aparezcan pasan a histórico, pero sus seguimientos se conservan.</p>
+              <p>Solo Mesa de Control alimenta este catálogo maestro para todas las áreas.</p>
               <input type="file" id="attendanceFile" accept=".xlsx,.xls" />
               <button class="primary" id="loadAttendance">Actualizar personas compartidas</button>
               <div class="statusline" id="attendanceStatus"></div>
@@ -211,18 +239,11 @@
           <div class="window">
             <div class="titlebar"><span>🏪 Actualizar BASE DE TIENDAS</span><span>— □ ×</span></div>
             <div class="window-body">
-              <p>Actualiza el catálogo compartido de tiendas para todo el equipo.</p>
+              <p>Mesa de Control mantiene tiendas, determinantes, regiones y socios.</p>
               <input type="file" id="storesFile" accept=".xlsx,.xls" />
               <button class="primary" id="loadStores">Actualizar tiendas compartidas</button>
               <div class="statusline" id="storesStatus"></div>
             </div>
-          </div>
-        </div>
-        <div class="window">
-          <div class="titlebar"><span>🧩 Actividades disponibles</span><span>— □ ×</span></div>
-          <div class="window-body">
-            <div class="inline"><input id="newActivityCatalog" placeholder="Nueva actividad"/><button id="addActivityCatalog">+ Agregar</button></div>
-            <div id="activityCatalogChips" class="chips"></div>
           </div>
         </div>
       </section>
@@ -245,6 +266,7 @@
       </div>
     </div>
     <div id="toast"></div>
+    <div id="heartCelebration" class="heart-celebration" aria-live="polite"><div class="big-heart">💗</div><b>¡Tarea finalizada!</b><span>Eso, tú puedes ♡</span></div>
   </div>
 
   <script src="config.js"></script>
