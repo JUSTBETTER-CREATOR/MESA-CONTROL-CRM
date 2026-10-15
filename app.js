@@ -943,7 +943,7 @@ function updatePersonalBuddy(){
   if (!img || !currentAnalyst) return;
   const n = normalize(currentAnalyst.nombre || '');
   if (n.includes('IRVING') || n.includes('VICENTE')) {
-    img.src = 'coraje-irving-vicente.gif';
+    img.src = 'assets/coraje-irving-vicente.gif';
     img.alt = 'Coraje animado';
     const speech = document.getElementById('aiSpeech');
     if (speech) speech.innerHTML = '<b>AI Buddy:</b> modo coraje activado 😤💗';
