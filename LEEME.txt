@@ -1,24 +1,20 @@
-BETTER CONTROL · INFORMES EXCLUSIVOS DE INGRID
+BETTER CONTROL · INFORMES + IMAGEN PERSONALIZADA DEL AI BUDDY
 
-SUBE A LA RAÍZ DE TU REPOSITORIO:
-1. index.html      -> reemplaza el index.html actual
-2. reports.js      -> archivo NUEVO
-3. reports.css     -> archivo NUEVO
+SUBE/REEMPLAZA ESTOS ARCHIVOS EN LA RAÍZ DE GITHUB:
+- index.html      → REEMPLAZAR
+- app.js          → REEMPLAZAR
+- reports.js      → mantener/subir
+- reports.css     → REEMPLAZAR
 
-NO NECESITAS CAMBIAR app.js.
-El app.js incluido en este ZIP es solo una copia de respaldo de la versión que me mandaste.
+QUÉ SE AGREGÓ:
+1. Ingrid (rol GLOBAL) conserva la pestaña 📄 Informes.
+2. TODOS los usuarios ahora ven debajo de su AI Buddy:
+   - 🖼️ Cambiar imagen
+   - ↺ Restaurar
+3. Acepta PNG, JPG, WEBP y GIF, hasta 15 MB.
+4. La imagen se guarda por usuario en el navegador (IndexedDB).
+   Esto significa que permanece al cerrar/abrir el CRM en ese dispositivo.
+   Si el usuario entra desde otra computadora, tendrá que elegirla otra vez.
+5. Restaurar vuelve al Buddy predeterminado de cada usuario.
 
-La nueva pestaña "📄 Informes" aparece únicamente al rol GLOBAL (Ingrid).
-Permite seleccionar fecha y generar:
-- Todas las áreas
-- Una sola área
-- Una sola persona
-
-Incluye:
-- vista previa
-- actividades repetidas consolidadas por persona
-- descarga PDF
-- descarga Excel
-
-IMPORTANTE:
-Sube los archivos en la raíz del repositorio, junto a config.js, styles.css y app.js.
+No requiere SQL nuevo ni cambios en Supabase.

@@ -938,11 +938,128 @@ async function enterApp(user) {
 }
 
 
-function updatePersonalBuddy(){
+
+// ============================================================
+// IMAGEN PERSONALIZADA DEL AI BUDDY · TODOS LOS USUARIOS
+// Se guarda localmente por usuario en IndexedDB para soportar GIFs e imágenes grandes.
+// ============================================================
+const BUDDY_DB_NAME = 'better_control_buddy_db';
+const BUDDY_DB_VERSION = 1;
+const BUDDY_STORE = 'buddy_images';
+let customBuddyObjectUrl = null;
+
+function openBuddyDB(){
+  return new Promise((resolve,reject)=>{
+    if(!('indexedDB' in window)) return reject(new Error('IndexedDB no disponible'));
+    const req=indexedDB.open(BUDDY_DB_NAME,BUDDY_DB_VERSION);
+    req.onupgradeneeded=()=>{
+      const db=req.result;
+      if(!db.objectStoreNames.contains(BUDDY_STORE)) db.createObjectStore(BUDDY_STORE);
+    };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||new Error('No pude abrir almacenamiento'));
+  });
+}
+
+async function getBuddyBlob(userKey){
+  const db=await openBuddyDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(BUDDY_STORE,'readonly');
+    const req=tx.objectStore(BUDDY_STORE).get(userKey);
+    req.onsuccess=()=>resolve(req.result||null);
+    req.onerror=()=>reject(req.error);
+    tx.oncomplete=()=>db.close();
+  });
+}
+
+async function saveBuddyBlob(userKey, payload){
+  const db=await openBuddyDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(BUDDY_STORE,'readwrite');
+    tx.objectStore(BUDDY_STORE).put(payload,userKey);
+    tx.oncomplete=()=>{db.close();resolve(true)};
+    tx.onerror=()=>{db.close();reject(tx.error)};
+  });
+}
+
+async function deleteBuddyBlob(userKey){
+  const db=await openBuddyDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(BUDDY_STORE,'readwrite');
+    tx.objectStore(BUDDY_STORE).delete(userKey);
+    tx.oncomplete=()=>{db.close();resolve(true)};
+    tx.onerror=()=>{db.close();reject(tx.error)};
+  });
+}
+
+function buddyUserKey(){
+  return String(currentAnalyst?.id || currentAnalyst?.analista_id || currentUser?.id || normalize(currentAnalyst?.email||currentAnalyst?.nombre||'USUARIO'));
+}
+
+function revokeCustomBuddyUrl(){
+  if(customBuddyObjectUrl){
+    try{ URL.revokeObjectURL(customBuddyObjectUrl); }catch(_e){}
+    customBuddyObjectUrl=null;
+  }
+}
+
+async function loadCustomBuddyImage(){
+  const img=document.getElementById('aiBuddyGif');
+  if(!img || !currentAnalyst) return;
+  try{
+    const saved=await getBuddyBlob(buddyUserKey());
+    if(!saved?.blob) return;
+    revokeCustomBuddyUrl();
+    customBuddyObjectUrl=URL.createObjectURL(saved.blob);
+    img.src=customBuddyObjectUrl;
+    img.alt='Imagen personalizada';
+    const msg=document.getElementById('aiBuddyMessage');
+    if(msg) msg.innerHTML='<b>AI Buddy:</b> imagen personalizada activada ✨';
+  }catch(err){
+    console.warn('Buddy personalizado:',err);
+  }
+}
+
+async function chooseCustomBuddyImage(file){
+  if(!file || !currentAnalyst) return;
+  if(!/^image\/(png|jpeg|webp|gif)$/i.test(file.type||'')){
+    toast('Usa una imagen PNG, JPG, WEBP o GIF');
+    return;
+  }
+  // Límite preventivo: 15 MB por imagen.
+  if(file.size > 15*1024*1024){
+    toast('La imagen es muy pesada. Máximo 15 MB');
+    return;
+  }
+  try{
+    await saveBuddyBlob(buddyUserKey(),{blob:file,name:file.name,type:file.type,updatedAt:new Date().toISOString()});
+    revokeCustomBuddyUrl();
+    customBuddyObjectUrl=URL.createObjectURL(file);
+    const img=document.getElementById('aiBuddyGif');
+    if(img){img.src=customBuddyObjectUrl;img.alt='Imagen personalizada'}
+    const msg=document.getElementById('aiBuddyMessage');
+    if(msg) msg.innerHTML='<b>AI Buddy:</b> tu imagen quedó guardada 💗';
+    toast('🖼️ Imagen personalizada guardada');
+  }catch(err){
+    console.error(err);
+    toast('No pude guardar la imagen en este navegador');
+  }
+}
+
+async function resetCustomBuddyImage(){
+  if(!currentAnalyst) return;
+  try{ await deleteBuddyBlob(buddyUserKey()); }catch(err){ console.warn(err); }
+  revokeCustomBuddyUrl();
+  updatePersonalBuddy(true);
+  toast('Imagen original restaurada');
+}
+
+function updatePersonalBuddy(skipCustom=false){
   const img = document.getElementById('aiBuddyGif');
   if (!img || !currentAnalyst) return;
+  revokeCustomBuddyUrl();
   const n = normalize(currentAnalyst.nombre || '');
-  const speech = document.getElementById('aiSpeech');
+  const speech = document.getElementById('aiBuddyMessage') || document.getElementById('aiSpeech');
 
   if (n.includes('VICENTE')) {
     img.src = 'vicente-jack-v1.gif?v=1';
@@ -957,10 +1074,20 @@ function updatePersonalBuddy(){
     img.alt = 'Ternurín animado';
     if (speech) speech.innerHTML = '<b>AI Buddy:</b> modo ternurín activado 🐱💗';
   }
+
+  if(!skipCustom) loadCustomBuddyImage();
 }
 
 function setupV13UI() {
   if (v13Bound) return; v13Bound=true;
+
+  $('#buddyImageBtn')?.addEventListener('click',()=>$('#buddyImageInput')?.click());
+  $('#buddyImageInput')?.addEventListener('change',async e=>{
+    const file=e.target.files?.[0];
+    if(file) await chooseCustomBuddyImage(file);
+    e.target.value='';
+  });
+  $('#buddyImageReset')?.addEventListener('click',resetCustomBuddyImage);
   $('#refreshConnected')?.addEventListener('click', renderConnected);
   $('#liveUserFilter')?.addEventListener('change', e => { liveUserFilter = e.target.value || 'ALL'; renderLive(); });
 
