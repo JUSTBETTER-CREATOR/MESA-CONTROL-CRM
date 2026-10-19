@@ -8,6 +8,11 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <link rel="stylesheet" href="reports.css" />
+
 </head>
 <body>
   <div class="bg-grid"></div>
@@ -51,6 +56,7 @@
       <button class="tab" data-view="estadisticas">📊 Estadísticas</button>
       <button class="tab" data-view="ranking">🏆 Ranking actividades</button>
       <button class="tab" data-view="conectados">🟢 Conectados</button>
+      <button class="tab hidden" data-view="informes" id="reportsTab">📄 Informes</button>
       <button class="tab" data-view="catalogos">📚 Mis actividades</button>
       <button class="tab" data-view="admin" id="adminTab">🛠 Administración</button>
     </nav>
@@ -270,6 +276,89 @@
         </div>
       </section>
 
+
+      <section class="view" id="view-informes">
+        <div class="reports-shell">
+          <div class="reports-hero">
+            <div>
+              <div class="reports-kicker">BETTER CONTROL · COORDINACIÓN</div>
+              <h1>Centro de informes</h1>
+              <p>Genera reportes ejecutivos por fecha, área o colaborador. Esta pestaña es exclusiva para Ingrid.</p>
+            </div>
+            <div class="reports-lock">🔒 SOLO COORDINACIÓN</div>
+          </div>
+
+          <div class="reports-grid">
+            <div class="window reports-config-window">
+              <div class="titlebar"><span>⚙️ CONFIGURAR INFORME</span><span>— □ ×</span></div>
+              <div class="window-body">
+                <div class="report-form-grid">
+                  <label>Fecha
+                    <input id="reportDate" type="date" />
+                  </label>
+                  <label>Tipo de informe
+                    <select id="reportScope">
+                      <option value="ALL">Todas las áreas</option>
+                      <option value="AREA">Por área</option>
+                      <option value="PERSON">Por persona</option>
+                    </select>
+                  </label>
+                  <label id="reportAreaWrap" class="hidden">Área
+                    <select id="reportArea"></select>
+                  </label>
+                  <label id="reportPersonWrap" class="hidden">Persona
+                    <select id="reportPerson"></select>
+                  </label>
+                  <label class="report-check">
+                    <input id="reportDeduplicate" type="checkbox" checked />
+                    <span><b>Consolidar actividades repetidas</b><small>La misma actividad aparece una sola vez por persona e indica cuántas veces fue registrada.</small></span>
+                  </label>
+                </div>
+
+                <div class="report-actions">
+                  <button id="previewReportBtn" class="primary">👁 Generar vista previa</button>
+                  <button id="downloadReportPdfBtn" class="primary">📄 Descargar PDF</button>
+                  <button id="downloadReportExcelBtn">📊 Descargar Excel</button>
+                </div>
+                <div id="reportStatus" class="report-status">Selecciona una fecha para comenzar.</div>
+              </div>
+            </div>
+
+            <div class="reports-side">
+              <div class="report-tip-card"><span>✦</span><div><b>Informe ejecutivo</b><small>KPIs, resumen por área/persona y detalle de actividades en un solo documento.</small></div></div>
+              <div class="report-tip-card"><span>♡</span><div><b>Sin duplicados visuales</b><small>Ideal para compartir con coordinación sin repetir la misma tarea una y otra vez.</small></div></div>
+            </div>
+          </div>
+
+          <div id="reportPreview" class="report-preview hidden">
+            <div class="report-preview-head">
+              <div><div class="reports-kicker">VISTA PREVIA</div><h2 id="reportPreviewTitle">Informe</h2><p id="reportPreviewSubtitle"></p></div>
+              <div id="reportPreviewBadge" class="report-preview-badge"></div>
+            </div>
+            <div id="reportKpis" class="report-kpis"></div>
+
+            <div class="window">
+              <div class="titlebar"><span>📌 RESUMEN EJECUTIVO</span><span>— □ ×</span></div>
+              <div class="window-body"><div id="reportExecutiveSummary"></div></div>
+            </div>
+
+            <div class="window">
+              <div class="titlebar"><span>👥 RESUMEN POR COLABORADOR</span><span>— □ ×</span></div>
+              <div class="window-body report-table-wrap">
+                <table class="report-table"><thead><tr><th>Área</th><th>Persona</th><th>Actividades</th><th>Finalizadas</th><th>En curso</th></tr></thead><tbody id="reportPeopleBody"></tbody></table>
+              </div>
+            </div>
+
+            <div class="window">
+              <div class="titlebar"><span>📋 DETALLE DE ACTIVIDADES</span><span>— □ ×</span></div>
+              <div class="window-body report-table-wrap">
+                <table class="report-table report-detail-table"><thead><tr><th>Área</th><th>Persona</th><th>Actividad</th><th>Estatus</th><th>Veces</th><th>Min.</th><th>Cierre</th></tr></thead><tbody id="reportDetailBody"></tbody></table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-admin">
         <div class="grid-2">
           <div class="window">
@@ -317,5 +406,6 @@
   <script src="config.js"></script>
   <script src="assets/catalogs.js"></script>
   <script src="app.js"></script>
+  <script src="reports.js?v=20261019a"></script>
 </body>
 </html>
