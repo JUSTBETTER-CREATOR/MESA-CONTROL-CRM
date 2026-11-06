@@ -213,19 +213,7 @@ main{
   overflow:hidden!important;
   padding:34px 28px!important;
 }
-.cute-hero::before{
-  content:"HÁBITOS";
-  position:absolute;
-  left:28px;
-  top:16px;
-  color:var(--hb-green);
-  font-family:Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif!important;
-  font-size:clamp(60px,8vw,116px);
-  line-height:.88;
-  letter-spacing:.09em;
-  opacity:.12;
-  pointer-events:none;
-}
+.cute-hero::before{display:none!important;}
 .cute-hero::after{
   content:"";
   position:absolute;
@@ -527,4 +515,75 @@ small,.muted,.meta{
   .daily-kpis>div{border-right:none!important;border-bottom:1px solid rgba(34,48,44,.22)!important;}
   .daily-kpis>div:last-child{border-bottom:none!important;}
   .tab{font-size:11px!important;padding:14px 12px 12px!important;}
+}
+
+
+/* ============================================================
+   FONDO GLOBAL PERSONALIZABLE V3
+   ============================================================ */
+:root{
+  --crm-user-bg:none;
+}
+body.crm-custom-background{
+  background-color:var(--hb-bg)!important;
+  background-image:
+    linear-gradient(rgba(242,236,223,.76),rgba(242,236,223,.76)),
+    var(--crm-user-bg)!important;
+  background-size:cover!important;
+  background-position:center center!important;
+  background-repeat:no-repeat!important;
+  background-attachment:fixed!important;
+}
+body.crm-custom-background::before{
+  opacity:.05!important;
+}
+body.crm-custom-background #appShell{
+  background:transparent!important;
+}
+body.crm-custom-background main,
+body.crm-custom-background .tabs{
+  background:transparent!important;
+}
+body.crm-custom-background .topbar{
+  background:rgba(248,244,234,.88)!important;
+  backdrop-filter:blur(10px)!important;
+}
+body.crm-custom-background .window,
+body.crm-custom-background .ai-buddy,
+body.crm-custom-background .cute-hero{
+  background:rgba(248,244,234,.86)!important;
+  backdrop-filter:blur(7px)!important;
+}
+body.crm-custom-background .window-body{
+  background:transparent!important;
+}
+
+.crm-global-bg-controls{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  flex-wrap:wrap!important;
+  margin-top:18px!important;
+}
+.crm-global-bg-controls button{
+  min-height:42px!important;
+  padding:9px 14px!important;
+  border:1px solid var(--hb-green)!important;
+  border-radius:0!important;
+  background:rgba(248,244,234,.74)!important;
+  color:var(--hb-green)!important;
+  font-weight:900!important;
+  letter-spacing:.05em!important;
+  text-transform:uppercase!important;
+}
+.crm-global-bg-controls small{
+  flex-basis:100%!important;
+  color:var(--hb-muted)!important;
+  font-size:11px!important;
+}
+.crm-global-bg-controls .bg-status{
+  flex-basis:auto!important;
+  padding-left:4px!important;
+  font-weight:800!important;
+  color:var(--hb-green)!important;
 }
