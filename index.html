@@ -13,6 +13,8 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <link rel="stylesheet" href="reports.css?v=20261019buddy" />
+  <link rel="stylesheet" href="theme-habitos.css?v=20261105" />
+  <link rel="stylesheet" href="metas-cumplimiento.css?v=20261105" />
 
 </head>
 <body>
@@ -58,6 +60,7 @@
       <button class="tab" data-view="ranking">🏆 Ranking actividades</button>
       <button class="tab" data-view="conectados">🟢 Conectados</button>
       <button class="tab hidden" data-view="informes" id="reportsTab">📄 Informes</button>
+      <button class="tab hidden" data-view="metas" id="metasTab">🎯 Metas y cumplimiento</button>
       <button class="tab" data-view="catalogos">📚 Mis actividades</button>
       <button class="tab" data-view="admin" id="adminTab">🛠 Administración</button>
     </nav>
@@ -366,6 +369,60 @@
         </div>
       </section>
 
+
+      <section class="view" id="view-metas">
+        <div class="window large metas-window">
+          <div class="titlebar"><span>🎯 METAS Y CUMPLIMIENTO</span><span>— □ ×</span></div>
+          <div class="window-body">
+            <div class="metas-intro">
+              <div>
+                <div class="metas-kicker">CONTROL DE ACTIVIDADES</div>
+                <h2>Metas por actividad</h2>
+                <p>Define la meta del día. El resultado se calcula automáticamente con las veces que la actividad fue registrada en el CRM.</p>
+              </div>
+              <div class="metas-permission-badge" id="metasPermissionBadge">SUPERVISIÓN</div>
+            </div>
+
+            <div class="metas-toolbar">
+              <label>Fecha
+                <input id="metasFecha" type="date" />
+              </label>
+              <label id="metasAreaWrap">Área
+                <select id="metasArea"></select>
+              </label>
+              <div class="metas-toolbar-actions">
+                <button id="metasRefreshBtn">↻ Actualizar resultado</button>
+                <button id="metasSaveBtn" class="primary">💾 Guardar metas</button>
+                <button id="metasExcelBtn">📊 Descargar Excel</button>
+              </div>
+            </div>
+
+            <div class="metas-summary" id="metasSummary">
+              <div><strong id="metasTotalActs">—</strong><span>ACTIVIDADES</span></div>
+              <div><strong id="metasTotalMeta">—</strong><span>META TOTAL</span></div>
+              <div><strong id="metasTotalResult">—</strong><span>RESULTADO</span></div>
+              <div><strong id="metasOverallPct">—</strong><span>CUMPLIMIENTO</span></div>
+            </div>
+
+            <div class="metas-table-wrap">
+              <table class="metas-table">
+                <thead>
+                  <tr>
+                    <th>Actividad</th>
+                    <th>Meta</th>
+                    <th>Resultado</th>
+                    <th>Cumplimiento</th>
+                  </tr>
+                </thead>
+                <tbody id="metasBody"></tbody>
+              </table>
+            </div>
+
+            <div id="metasStatus" class="metas-status">Selecciona una fecha para revisar el cumplimiento.</div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-admin">
         <div class="grid-2">
           <div class="window">
@@ -417,5 +474,7 @@
   <script src="reports-v3.js?v=20261102a"></script>
   <script src="cuadro-actividades-v4.js?v=20261102a"></script>
   <script src="hero-fondo.js?v=20261102a"></script>
+  <script src="catalogo-fijo.js?v=20261105"></script>
+  <script src="metas-cumplimiento.js?v=20261105"></script>
 </body>
 </html>
