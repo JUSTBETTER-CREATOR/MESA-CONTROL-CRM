@@ -527,7 +527,7 @@ small,.muted,.meta{
 body.crm-custom-background{
   background-color:var(--hb-bg)!important;
   background-image:
-    linear-gradient(rgba(242,236,223,.76),rgba(242,236,223,.76)),
+    linear-gradient(rgba(242,236,223,.30),rgba(242,236,223,.30)),
     var(--crm-user-bg)!important;
   background-size:cover!important;
   background-position:center center!important;
@@ -548,11 +548,17 @@ body.crm-custom-background .topbar{
   background:rgba(248,244,234,.88)!important;
   backdrop-filter:blur(10px)!important;
 }
-body.crm-custom-background .window,
-body.crm-custom-background .ai-buddy,
+body.crm-custom-background .window{
+  background:rgba(248,244,234,.68)!important;
+  backdrop-filter:blur(5px)!important;
+}
+body.crm-custom-background .ai-buddy{
+  background:rgba(248,244,234,.74)!important;
+  backdrop-filter:blur(5px)!important;
+}
 body.crm-custom-background .cute-hero{
-  background:rgba(248,244,234,.86)!important;
-  backdrop-filter:blur(7px)!important;
+  background:rgba(248,244,234,.24)!important;
+  backdrop-filter:blur(2px)!important;
 }
 body.crm-custom-background .window-body{
   background:transparent!important;
@@ -586,4 +592,174 @@ body.crm-custom-background .window-body{
   padding-left:4px!important;
   font-weight:800!important;
   color:var(--hb-green)!important;
+}
+
+
+/* V4: dejar el panel principal mucho más transparente cuando existe fondo personalizado */
+body.crm-custom-background .cute-hero::after{
+  opacity:.18!important;
+}
+body.crm-custom-background .daily-kpis{
+  background:rgba(248,244,234,.20)!important;
+  backdrop-filter:blur(2px)!important;
+}
+body.crm-custom-background .daily-kpis>div{
+  background:rgba(248,244,234,.16)!important;
+}
+body.crm-custom-background .crm-global-bg-controls button{
+  background:rgba(248,244,234,.58)!important;
+}
+
+/* ============================================================
+   V5 · FONDO PERSONALIZADO REALMENTE VISIBLE
+   La imagen vive en una capa propia detrás de todo el CRM.
+   ============================================================ */
+#crmGlobalBackgroundLayer{
+  position:fixed!important;
+  inset:0!important;
+  z-index:0!important;
+  pointer-events:none!important;
+  background-position:center center!important;
+  background-size:cover!important;
+  background-repeat:no-repeat!important;
+  background-attachment:fixed!important;
+  opacity:1!important;
+  transition:opacity .2s ease!important;
+}
+#crmGlobalBackgroundShade{
+  position:fixed!important;
+  inset:0!important;
+  z-index:0!important;
+  pointer-events:none!important;
+  background:rgba(242,236,223,.12)!important;
+}
+body.crm-custom-background{
+  background:transparent!important;
+  background-image:none!important;
+}
+body.crm-custom-background::before{
+  display:none!important;
+}
+body.crm-custom-background #appShell{
+  position:relative!important;
+  z-index:2!important;
+  background:transparent!important;
+}
+body.crm-custom-background main,
+body.crm-custom-background .view,
+body.crm-custom-background #view-inicio,
+body.crm-custom-background .cute-hero{
+  background:transparent!important;
+}
+body.crm-custom-background .cute-hero{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+body.crm-custom-background .cute-hero::after{
+  opacity:.04!important;
+}
+body.crm-custom-background .daily-kpis{
+  background:rgba(248,244,234,.18)!important;
+  backdrop-filter:blur(1.5px)!important;
+  -webkit-backdrop-filter:blur(1.5px)!important;
+}
+body.crm-custom-background .daily-kpis>div{
+  background:rgba(248,244,234,.08)!important;
+}
+body.crm-custom-background .window{
+  background:rgba(248,244,234,.42)!important;
+  backdrop-filter:blur(4px)!important;
+  -webkit-backdrop-filter:blur(4px)!important;
+}
+body.crm-custom-background .window-body{
+  background:transparent!important;
+}
+body.crm-custom-background .ai-buddy{
+  background:rgba(248,244,234,.52)!important;
+  backdrop-filter:blur(4px)!important;
+  -webkit-backdrop-filter:blur(4px)!important;
+}
+body.crm-custom-background .topbar{
+  background:rgba(248,244,234,.58)!important;
+  backdrop-filter:blur(8px)!important;
+  -webkit-backdrop-filter:blur(8px)!important;
+}
+body.crm-custom-background .tabs{
+  background:rgba(242,236,223,.42)!important;
+  backdrop-filter:blur(6px)!important;
+  -webkit-backdrop-filter:blur(6px)!important;
+}
+body.crm-custom-background input,
+body.crm-custom-background select,
+body.crm-custom-background textarea{
+  background:rgba(255,255,255,.68)!important;
+}
+body.crm-custom-background .crm-global-bg-controls button{
+  background:rgba(248,244,234,.54)!important;
+}
+
+/* ============================================================
+   V6 · MÁS FONDO / MENOS CAPA CREMA
+   ============================================================ */
+body.crm-custom-background #crmGlobalBackgroundShade{
+  background:rgba(242,236,223,.04)!important;
+}
+body.crm-custom-background .cute-hero{
+  background:rgba(248,244,234,.05)!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+body.crm-custom-background .cute-hero::after{
+  opacity:.015!important;
+}
+body.crm-custom-background .daily-kpis{
+  background:rgba(248,244,234,.07)!important;
+  backdrop-filter:blur(.5px)!important;
+  -webkit-backdrop-filter:blur(.5px)!important;
+}
+body.crm-custom-background .daily-kpis>div{
+  background:rgba(248,244,234,.03)!important;
+}
+body.crm-custom-background .window{
+  background:rgba(248,244,234,.20)!important;
+  backdrop-filter:blur(1.5px)!important;
+  -webkit-backdrop-filter:blur(1.5px)!important;
+}
+body.crm-custom-background .ai-buddy{
+  background:rgba(248,244,234,.28)!important;
+  backdrop-filter:blur(1.5px)!important;
+  -webkit-backdrop-filter:blur(1.5px)!important;
+}
+body.crm-custom-background .titlebar{
+  background:rgba(248,244,234,.38)!important;
+}
+body.crm-custom-background .topbar{
+  background:rgba(248,244,234,.34)!important;
+  backdrop-filter:blur(2px)!important;
+  -webkit-backdrop-filter:blur(2px)!important;
+}
+body.crm-custom-background .tabs{
+  background:rgba(242,236,223,.22)!important;
+  backdrop-filter:blur(1px)!important;
+  -webkit-backdrop-filter:blur(1px)!important;
+}
+body.crm-custom-background input,
+body.crm-custom-background select,
+body.crm-custom-background textarea{
+  background:rgba(255,255,255,.52)!important;
+}
+body.crm-custom-background .announcement-card,
+body.crm-custom-background .card,
+body.crm-custom-background .event,
+body.crm-custom-background .connected-card,
+body.crm-custom-background .ranking-card,
+body.crm-custom-background .profile,
+body.crm-custom-background .report-kpi,
+body.crm-custom-background .report-summary-card,
+body.crm-custom-background .report-tip-card{
+  background:rgba(255,255,255,.20)!important;
+}
+body.crm-custom-background .crm-global-bg-controls button,
+body.crm-custom-background .buddy-customizer button{
+  background:rgba(248,244,234,.30)!important;
 }

@@ -1,18 +1,15 @@
-/* BETTER CONTROL · FONDO GLOBAL PERSONALIZABLE */
+/* BETTER CONTROL · FONDO GLOBAL V5 · CAPA REAL DETRÁS DEL CRM */
 (() => {
   const DB_NAME = 'better_control_preferences';
   const STORE = 'backgrounds';
   const VERSION = 1;
-
   const $ = (s) => document.querySelector(s);
 
   function userKey(){
     try {
       const id = currentAnalyst?.id || currentAnalyst?.email || 'anon';
       return `crm-global-bg:${String(id).toLowerCase()}`;
-    } catch {
-      return 'crm-global-bg:anon';
-    }
+    } catch { return 'crm-global-bg:anon'; }
   }
 
   function openDb(){
@@ -27,7 +24,6 @@
       req.onerror=()=>reject(req.error);
     });
   }
-
   async function dbGet(key){
     const db=await openDb();
     return new Promise((resolve,reject)=>{
@@ -37,7 +33,6 @@
       req.onerror=()=>reject(req.error);
     });
   }
-
   async function dbSet(key,value){
     const db=await openDb();
     return new Promise((resolve,reject)=>{
@@ -47,7 +42,6 @@
       tx.onerror=()=>reject(tx.error);
     });
   }
-
   async function dbDelete(key){
     const db=await openDb();
     return new Promise((resolve,reject)=>{
@@ -58,12 +52,47 @@
     });
   }
 
+  function ensureLayers(){
+    let layer=$('#crmGlobalBackgroundLayer');
+    if(!layer){
+      layer=document.createElement('div');
+      layer.id='crmGlobalBackgroundLayer';
+      document.body.prepend(layer);
+    }
+    let shade=$('#crmGlobalBackgroundShade');
+    if(!shade){
+      shade=document.createElement('div');
+      shade.id='crmGlobalBackgroundShade';
+      layer.insertAdjacentElement('afterend',shade);
+    }
+    return {layer,shade};
+  }
+
+  function normalizeSaved(value){
+    if(!value) return null;
+    if(typeof value === 'string'){
+      const v=value.trim();
+      if(v.startsWith('data:image/')) return v;
+      if(v.startsWith('url(')){
+        const m=v.match(/^url\(["']?(data:image\/[^"')]+)["']?\)$/i);
+        if(m) return m[1];
+      }
+      return null;
+    }
+    if(typeof value === 'object' && typeof value.dataUrl === 'string') return normalizeSaved(value.dataUrl);
+    return null;
+  }
+
   function applyBackground(dataUrl){
-    if(dataUrl){
-      document.documentElement.style.setProperty('--crm-user-bg', `url("${dataUrl.replace(/"/g,'\\"')}")`);
+    const {layer}=ensureLayers();
+    const normalized=normalizeSaved(dataUrl);
+    if(normalized){
+      layer.style.backgroundImage=`url("${normalized.replace(/"/g,'\\"')}")`;
+      layer.style.display='block';
       document.body.classList.add('crm-custom-background');
     }else{
-      document.documentElement.style.setProperty('--crm-user-bg','none');
+      layer.style.backgroundImage='none';
+      layer.style.display='none';
       document.body.classList.remove('crm-custom-background');
     }
   }
@@ -77,17 +106,18 @@
     const key=userKey();
     try{
       const saved=await dbGet(key);
-      if(saved?.dataUrl){
-        applyBackground(saved.dataUrl);
+      const data=normalizeSaved(saved);
+      if(data){
+        applyBackground(data);
         setStatus('Fondo personalizado activo');
         return;
       }
     }catch{}
-    // Compatibilidad con versiones antiguas guardadas en localStorage.
     try{
       const legacy=localStorage.getItem(key) || localStorage.getItem('betterControlHeroBackground');
-      if(legacy){
-        applyBackground(legacy);
+      const data=normalizeSaved(legacy);
+      if(data){
+        applyBackground(data);
         setStatus('Fondo personalizado activo');
       }
     }catch{}
@@ -97,7 +127,6 @@
     if($('#crmGlobalBgControls')) return;
     const host=$('.cute-copy') || $('#view-inicio .window-body') || $('#view-inicio');
     if(!host) return;
-
     const wrap=document.createElement('div');
     wrap.id='crmGlobalBgControls';
     wrap.className='crm-global-bg-controls';
@@ -106,35 +135,29 @@
       <button type="button" id="crmGlobalBgBtn">🖼️ Cambiar fondo completo</button>
       <button type="button" id="crmGlobalBgReset">↺ Restaurar fondo</button>
       <span id="crmGlobalBgStatus" class="bg-status"></span>
-      <small>La imagen cubre todo el CRM y queda guardada únicamente en este navegador.</small>`;
+      <small>La imagen queda detrás de todo el CRM y se guarda en este navegador.</small>`;
     host.appendChild(wrap);
 
     const input=$('#crmGlobalBgInput');
     $('#crmGlobalBgBtn')?.addEventListener('click',()=>input?.click());
-
     input?.addEventListener('change',()=>{
       const file=input.files?.[0];
       if(!file) return;
       if(!/^image\/(png|jpeg|webp|gif)$/i.test(file.type)){
         setStatus('Selecciona PNG, JPG, WEBP o GIF');
-        input.value='';
-        return;
+        input.value=''; return;
       }
-      // 12 MB: IndexedDB tolera imágenes mucho mejor que localStorage.
       if(file.size > 12*1024*1024){
-        setStatus('La imagen es muy pesada. Usa una menor a 12 MB.');
-        input.value='';
-        return;
+        setStatus('Usa una imagen menor a 12 MB');
+        input.value=''; return;
       }
       const reader=new FileReader();
       reader.onload=async()=>{
         const dataUrl=String(reader.result||'');
         applyBackground(dataUrl);
-        setStatus('Fondo actualizado ✓');
+        setStatus('Fondo visible actualizado ✓');
         try{ await dbSet(userKey(),{dataUrl,updatedAt:new Date().toISOString()}); }
-        catch{
-          try{ localStorage.setItem(userKey(),dataUrl); }catch{}
-        }
+        catch{ try{ localStorage.setItem(userKey(),dataUrl); }catch{} }
         input.value='';
       };
       reader.onerror=()=>setStatus('No pude leer esa imagen');
@@ -158,23 +181,21 @@
   }
 
   function boot(){
+    ensureLayers();
     let tries=0;
     const timer=setInterval(async()=>{
       tries++;
-      const shell=$('#appShell');
       const analystReady=(()=>{try{return typeof currentAnalyst!=='undefined' && !!currentAnalyst;}catch{return false;}})();
-      if(shell && analystReady){
+      if(analystReady){
         clearInterval(timer);
         removeOldHeroControls();
         installControls();
         await restoreSaved();
-        // Old scripts may inject their controls later; remove them once more.
         setTimeout(removeOldHeroControls,1200);
       }
       if(tries>90) clearInterval(timer);
     },350);
   }
-
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot);
   else boot();
 })();
