@@ -527,7 +527,7 @@ small,.muted,.meta{
 body.crm-custom-background{
   background-color:var(--hb-bg)!important;
   background-image:
-    linear-gradient(rgba(242,236,223,.30),rgba(242,236,223,.30)),
+    linear-gradient(rgba(242,236,223,.76),rgba(242,236,223,.76)),
     var(--crm-user-bg)!important;
   background-size:cover!important;
   background-position:center center!important;
@@ -548,17 +548,11 @@ body.crm-custom-background .topbar{
   background:rgba(248,244,234,.88)!important;
   backdrop-filter:blur(10px)!important;
 }
-body.crm-custom-background .window{
-  background:rgba(248,244,234,.68)!important;
-  backdrop-filter:blur(5px)!important;
-}
-body.crm-custom-background .ai-buddy{
-  background:rgba(248,244,234,.74)!important;
-  backdrop-filter:blur(5px)!important;
-}
+body.crm-custom-background .window,
+body.crm-custom-background .ai-buddy,
 body.crm-custom-background .cute-hero{
-  background:rgba(248,244,234,.24)!important;
-  backdrop-filter:blur(2px)!important;
+  background:rgba(248,244,234,.86)!important;
+  backdrop-filter:blur(7px)!important;
 }
 body.crm-custom-background .window-body{
   background:transparent!important;
@@ -592,20 +586,4 @@ body.crm-custom-background .window-body{
   padding-left:4px!important;
   font-weight:800!important;
   color:var(--hb-green)!important;
-}
-
-
-/* V4: dejar el panel principal mucho más transparente cuando existe fondo personalizado */
-body.crm-custom-background .cute-hero::after{
-  opacity:.18!important;
-}
-body.crm-custom-background .daily-kpis{
-  background:rgba(248,244,234,.20)!important;
-  backdrop-filter:blur(2px)!important;
-}
-body.crm-custom-background .daily-kpis>div{
-  background:rgba(248,244,234,.16)!important;
-}
-body.crm-custom-background .crm-global-bg-controls button{
-  background:rgba(248,244,234,.58)!important;
 }
