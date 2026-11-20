@@ -478,56 +478,537 @@
   <script src="metas-cumplimiento.js?v=20261105"></script>
   <script src="descargar-actividades-area.js?v=20261106a"></script>
 
-  <!-- CPRO · SEGUIMIENTOS POR TIENDA · INTEGRADO -->
+  <!-- CPRO · HISTÓRICO GENERAL · FILTROS + EXCEL -->
   <script>
-/* BETTER CONTROL · CPRO · SEGUIMIENTOS POR TIENDA */
+/* BETTER CONTROL · CPRO · HISTÓRICO GENERAL CON FILTROS */
 (() => {
   'use strict';
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const fmt=v=>{const d=new Date(v);return Number.isNaN(d.getTime())?'—':d.toLocaleString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})};
-  const detOf=v=>{const s=String(v||'').trim();const m=s.match(/\b\d{3,6}\b/);return m?m[0]:s.toUpperCase()};
-  const isCPRO=()=>{try{return String(activeAreaKey||'').toUpperCase()==='CPRO'}catch(_){const s=document.querySelector('#globalAreaSelect');return (s?.options?.[s.selectedIndex]?.textContent||'').toUpperCase().includes('CPRO')}};
-  async function cproAreaId(){try{if(isCPRO()&&activeAreaId)return activeAreaId}catch(_){}const {data,error}=await sb.from('areas').select('id').eq('clave','CPRO').maybeSingle();if(error)throw error;return data?.id}
-  function styles(){if(document.querySelector('#cproStoreFollowupStyle'))return;const s=document.createElement('style');s.id='cproStoreFollowupStyle';s.textContent=`
-  .cpro-store-search{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:12px;align-items:end;margin-bottom:18px}.cpro-store-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 18px}.cpro-store-kpi,.cpro-store-card{border:1px solid rgba(15,75,67,.20);background:rgba(255,255,255,.5);padding:15px}.cpro-store-kpi strong{display:block;font-size:24px}.cpro-store-kpi span{font-size:11px;font-weight:800;text-transform:uppercase;opacity:.7}.cpro-store-card{margin-bottom:12px}.cpro-store-head{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(15,75,67,.14);padding-bottom:9px;margin-bottom:9px}.cpro-store-owner{font-weight:900}.cpro-store-type,.cpro-store-date,.cpro-store-meta{font-size:12px;opacity:.72}.cpro-store-text{margin-top:8px;line-height:1.5;white-space:pre-wrap}.cpro-store-files{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.cpro-store-file{padding:6px 9px;border:1px solid rgba(15,75,67,.22);text-decoration:none;color:inherit;font-size:12px}@media(max-width:700px){.cpro-store-search,.cpro-store-summary{grid-template-columns:1fr}.cpro-store-head{display:block}}`;
-  document.head.appendChild(s)}
-  function addUI(){if(document.querySelector('#storeFollowupsTab'))return;const p=document.querySelector('.tab[data-view="promotor"]'),main=document.querySelector('main');if(!p||!main)return;const b=document.createElement('button');b.id='storeFollowupsTab';b.className='tab hidden';b.dataset.view='tienda-seguimientos';b.textContent='🏪 Seguimientos por tienda';p.insertAdjacentElement('afterend',b);const v=document.createElement('section');v.id='view-tienda-seguimientos';v.className='view';v.innerHTML=`<div class="window large"><div class="titlebar"><span>🏪 HISTÓRICO GENERAL POR TIENDA</span><span>— □ ×</span></div><div class="window-body"><div class="cpro-store-search"><label>Determinante<input id="cproStoreDet" placeholder="Ej. 2304" autocomplete="off"></label><button class="primary" id="cproStoreBtn">🔎 Buscar tienda</button></div><div id="cproStoreHead"></div><div id="cproStoreResults" class="timeline big"><div class="empty">Escribe una determinante para consultar su historial.</div></div></div></div>`;main.appendChild(v);b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));v.classList.add('active');document.querySelector('#cproStoreDet')?.focus()};document.querySelector('#cproStoreBtn').onclick=search;document.querySelector('#cproStoreDet').addEventListener('keydown',e=>{if(e.key==='Enter')search()});sync()}
-  function sync(){const b=document.querySelector('#storeFollowupsTab'),v=document.querySelector('#view-tienda-seguimientos');if(!b)return;const ok=isCPRO();b.classList.toggle('hidden',!ok);if(!ok&&v?.classList.contains('active'))document.querySelector('.tab[data-view="inicio"]')?.click()}
-  async function fileLinks(files){const out=[];for(const f of files||[]){let u='#';try{const r=await sb.storage.from('evidencias').createSignedUrl(f.ruta_archivo,3600);u=r.data?.signedUrl||'#'}catch(_){}out.push(`<a class="cpro-store-file" href="${esc(u)}" target="_blank">📎 ${esc(f.nombre_archivo||'Evidencia')}</a>`)}return out.join('')}
-  async function search(){
-    const input=document.querySelector('#cproStoreDet'),head=document.querySelector('#cproStoreHead'),box=document.querySelector('#cproStoreResults'),det=detOf(input?.value);
-    if(!det){input?.focus();return}
-    input.value=det;head.innerHTML='';box.innerHTML='<div class="empty">Buscando histórico general…</div>';
-    try{
-      const [fuRes,actRes]=await Promise.all([
-        sb.from('seguimientos')
-          .select('id,fecha,determinante,region,motivo,comentario,analistas(nombre),tipos_seguimiento(nombre),seguimiento_personas(personas(nombre_completo)),evidencias(id,nombre_archivo,ruta_archivo,tipo_archivo)')
-          .eq('determinante',det)
-          .order('fecha',{ascending:false}),
-        sb.from('actividades')
-          .select('id,inicio,fin,estatus,determinante,region,notas,cierre,actividad_manual,analistas!actividades_analista_id_fkey(nombre),tipos_actividad(nombre)')
-          .eq('determinante',det)
-          .order('inicio',{ascending:false})
-      ]);
-      if(fuRes.error)throw fuRes.error;if(actRes.error)throw actRes.error;
-      const followups=(fuRes.data||[]).map(x=>({kind:'SEGUIMIENTO',date:x.fecha,owner:x.analistas?.nombre||'SIN NOMBRE',title:x.tipos_seguimiento?.nombre||'SEGUIMIENTO',region:x.region,motivo:x.motivo,comentario:x.comentario,people:(x.seguimiento_personas||[]).map(y=>y.personas?.nombre_completo).filter(Boolean),files:x.evidencias||[]}));
-      const activities=(actRes.data||[]).map(x=>({kind:'ACTIVIDAD',date:x.inicio,end:x.fin,status:x.estatus,owner:x.analistas?.nombre||'SIN NOMBRE',title:x.tipos_actividad?.nombre||x.actividad_manual||'ACTIVIDAD',region:x.region,motivo:x.notas,comentario:x.cierre,people:[],files:[]}));
-      const rows=[...followups,...activities].sort((a,b)=>new Date(b.date||0)-new Date(a.date||0));
-      const names=[...new Set(rows.map(x=>x.owner).filter(Boolean))];
-      head.innerHTML=`<div class="cpro-store-summary"><div class="cpro-store-kpi"><strong>${esc(det)}</strong><span>Determinante</span></div><div class="cpro-store-kpi"><strong>${rows.length}</strong><span>Registros históricos</span></div><div class="cpro-store-kpi"><strong>${names.length}</strong><span>Personas que registraron</span></div></div>`;
-      if(!rows.length){box.innerHTML=`<div class="empty">No hay registros históricos disponibles para la determinante <b>${esc(det)}</b>.</div>`;return}
-      const cards=[];
-      for(const x of rows){
-        const files=await fileLinks(x.files);
-        cards.push(`<div class="cpro-store-card"><div class="cpro-store-head"><div><div class="cpro-store-owner">${x.kind==='ACTIVIDAD'?'▶':'📋'} ${esc(x.owner)}</div><div class="cpro-store-type">${esc(x.kind)} · ${esc(x.title)}</div></div><div class="cpro-store-date">${fmt(x.date)}</div></div><div class="cpro-store-meta">🏪 ${esc(det)}${x.region?' · 📍 '+esc(x.region):''}${x.status?' · '+esc(x.status):''}${x.end?' · Finalizó '+fmt(x.end):''}</div>${x.people.length?`<div class="cpro-store-text"><b>Promotor(es):</b> ${esc(x.people.join(', '))}</div>`:''}${x.motivo?`<div class="cpro-store-text"><b>${x.kind==='ACTIVIDAD'?'Nota':'Motivo'}:</b> ${esc(x.motivo)}</div>`:''}${x.comentario?`<div class="cpro-store-text"><b>${x.kind==='ACTIVIDAD'?'Cierre':'Seguimiento'}:</b> ${esc(x.comentario)}</div>`:''}${files?`<div class="cpro-store-files">${files}</div>`:''}</div>`)
-      }
-      box.innerHTML=cards.join('')
-    }catch(e){box.innerHTML=`<div class="empty">No pude cargar el histórico general: ${esc(e.message)}</div>`}
-  }
-  function start(){styles();addUI();document.querySelector('#globalAreaSelect')?.addEventListener('change',()=>setTimeout(sync,350));setInterval(sync,1200)}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
-})();
 
+  let cproHistoryRows = [];
+
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+
+  const fmt = v => {
+    if (!v) return '—';
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('es-MX', {
+      day:'2-digit', month:'2-digit', year:'numeric',
+      hour:'2-digit', minute:'2-digit'
+    });
+  };
+
+  const detOf = v => {
+    const s = String(v || '').trim();
+    if (!s) return '';
+    const m = s.match(/\b\d{3,6}\b/);
+    return m ? m[0] : s.toUpperCase();
+  };
+
+  const currentAreaIsCPRO = () => {
+    try {
+      if (typeof activeAreaKey !== 'undefined' && activeAreaKey) {
+        return String(activeAreaKey).toUpperCase() === 'CPRO';
+      }
+    } catch (_) {}
+    const s = document.querySelector('#globalAreaSelect');
+    return (s?.options?.[s.selectedIndex]?.textContent || '')
+      .toUpperCase().includes('CPRO');
+  };
+
+  async function fetchPaged(factory, batch = 1000, maxRows = 20000) {
+    const all = [];
+    for (let from = 0; from < maxRows; from += batch) {
+      const to = Math.min(from + batch - 1, maxRows - 1);
+      const { data, error } = await factory().range(from, to);
+      if (error) throw error;
+      const part = data || [];
+      all.push(...part);
+      if (part.length < batch) break;
+    }
+    return all;
+  }
+
+  function injectStyles() {
+    if (document.querySelector('#cproHistoryFilterStyles')) return;
+    const s = document.createElement('style');
+    s.id = 'cproHistoryFilterStyles';
+    s.textContent = `
+      .cpro-hist-filters{
+        display:grid;
+        grid-template-columns:1.15fr 1.15fr 1fr .85fr;
+        gap:12px;
+        align-items:end;
+        margin-bottom:12px
+      }
+      .cpro-hist-actions{
+        display:flex;gap:9px;flex-wrap:wrap;
+        margin:4px 0 14px
+      }
+      .cpro-hist-actions button{min-height:42px}
+      .cpro-hist-help{
+        font-size:12px;opacity:.7;margin:0 0 14px
+      }
+      .cpro-hist-summary{
+        display:grid;grid-template-columns:repeat(4,1fr);
+        gap:10px;margin:14px 0 18px
+      }
+      .cpro-hist-kpi,.cpro-hist-card{
+        border:1px solid rgba(15,75,67,.20);
+        background:rgba(255,255,255,.50);
+        padding:15px
+      }
+      .cpro-hist-kpi strong{display:block;font-size:24px;line-height:1.05}
+      .cpro-hist-kpi span{
+        font-size:11px;font-weight:800;text-transform:uppercase;opacity:.7
+      }
+      .cpro-hist-card{margin-bottom:12px}
+      .cpro-hist-head{
+        display:flex;justify-content:space-between;gap:12px;
+        border-bottom:1px solid rgba(15,75,67,.14);
+        padding-bottom:9px;margin-bottom:9px
+      }
+      .cpro-hist-owner{font-weight:900}
+      .cpro-hist-kind{
+        display:inline-block;margin-right:7px;padding:3px 7px;
+        border:1px solid rgba(15,75,67,.22);
+        font-size:10px;font-weight:900;letter-spacing:.04em
+      }
+      .cpro-hist-type,.cpro-hist-date,.cpro-hist-meta{
+        font-size:12px;opacity:.72
+      }
+      .cpro-hist-text{margin-top:8px;line-height:1.5;white-space:pre-wrap}
+      .cpro-hist-files{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+      .cpro-hist-file{
+        padding:6px 9px;border:1px solid rgba(15,75,67,.22);
+        text-decoration:none;color:inherit;font-size:12px
+      }
+      .cpro-hist-filtertag{
+        display:inline-block;margin:0 7px 7px 0;padding:5px 8px;
+        border:1px solid rgba(15,75,67,.20);font-size:11px;font-weight:800
+      }
+      @media(max-width:1000px){
+        .cpro-hist-filters{grid-template-columns:repeat(2,1fr)}
+        .cpro-hist-summary{grid-template-columns:repeat(2,1fr)}
+      }
+      @media(max-width:650px){
+        .cpro-hist-filters,.cpro-hist-summary{grid-template-columns:1fr}
+        .cpro-hist-head{display:block}
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  function injectUI() {
+    if (document.querySelector('#storeFollowupsTab')) return;
+    const promoterTab = document.querySelector('.tab[data-view="promotor"]');
+    const main = document.querySelector('main');
+    if (!promoterTab || !main) return;
+
+    const tab = document.createElement('button');
+    tab.id = 'storeFollowupsTab';
+    tab.className = 'tab hidden';
+    tab.dataset.view = 'tienda-seguimientos';
+    tab.textContent = '🏪 Seguimientos por tienda';
+    promoterTab.insertAdjacentElement('afterend', tab);
+
+    const view = document.createElement('section');
+    view.id = 'view-tienda-seguimientos';
+    view.className = 'view';
+    view.innerHTML = `
+      <div class="window large">
+        <div class="titlebar">
+          <span>🏪 HISTÓRICO GENERAL · CPRO</span><span>— □ ×</span>
+        </div>
+        <div class="window-body">
+          <div class="cpro-hist-filters">
+            <label>Determinante
+              <input id="cproHistDet" placeholder="Ej. 1203" autocomplete="off">
+            </label>
+            <label>CPRO / responsable
+              <select id="cproHistOwner">
+                <option value="">Todas las CPRO</option>
+              </select>
+            </label>
+            <label>Región
+              <select id="cproHistRegion">
+                <option value="">Todas las regiones</option>
+              </select>
+            </label>
+            <label>Tipo de registro
+              <select id="cproHistKind">
+                <option value="ALL">Todo</option>
+                <option value="SEGUIMIENTO">Seguimientos</option>
+                <option value="ACTIVIDAD">Actividades</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="cpro-hist-actions">
+            <button class="primary" id="cproHistSearch">🔎 BUSCAR HISTÓRICO</button>
+            <button id="cproHistClear">↺ LIMPIAR</button>
+            <button id="cproHistExport" disabled>📥 DESCARGAR EXCEL</button>
+          </div>
+
+          <div class="cpro-hist-help">
+            Puedes buscar por determinante, por una integrante de CPRO, por región o combinar los filtros.
+            El resultado incluye el histórico disponible sin limitarlo a un día.
+          </div>
+
+          <div id="cproHistFilterTags"></div>
+          <div id="cproHistHead"></div>
+          <div id="cproHistResults" class="timeline big">
+            <div class="empty">Selecciona al menos un filtro para consultar el histórico.</div>
+          </div>
+        </div>
+      </div>`;
+
+    main.appendChild(view);
+
+    tab.onclick = async () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+      view.classList.add('active');
+      await loadFilterOptions();
+      document.querySelector('#cproHistDet')?.focus();
+    };
+
+    document.querySelector('#cproHistSearch').onclick = searchHistory;
+    document.querySelector('#cproHistClear').onclick = clearFilters;
+    document.querySelector('#cproHistExport').onclick = exportExcel;
+    document.querySelector('#cproHistDet').addEventListener('keydown', e => {
+      if (e.key === 'Enter') searchHistory();
+    });
+
+    syncVisibility();
+  }
+
+  function syncVisibility() {
+    const tab = document.querySelector('#storeFollowupsTab');
+    const view = document.querySelector('#view-tienda-seguimientos');
+    if (!tab) return;
+    const ok = currentAreaIsCPRO();
+    tab.classList.toggle('hidden', !ok);
+    if (!ok && view?.classList.contains('active')) {
+      document.querySelector('.tab[data-view="inicio"]')?.click();
+    }
+  }
+
+  async function getCPROAreaId() {
+    const { data, error } = await sb.from('areas')
+      .select('id').eq('clave','CPRO').limit(1).maybeSingle();
+    if (error) throw error;
+    return data?.id || null;
+  }
+
+  async function loadFilterOptions() {
+    const owner = document.querySelector('#cproHistOwner');
+    const region = document.querySelector('#cproHistRegion');
+    if (!owner || !region) return;
+    if (owner.dataset.loaded === '1' && region.dataset.loaded === '1') return;
+
+    try {
+      const cproAreaId = await getCPROAreaId();
+      const people = new Map();
+
+      if (cproAreaId) {
+        const { data: current } = await sb.from('analistas')
+          .select('id,nombre,activo,area_id')
+          .eq('area_id', cproAreaId)
+          .order('nombre');
+        for (const x of current || []) if (x.id && x.nombre) people.set(x.id, x.nombre);
+
+        // Incluye personas que históricamente registraron seguimientos en CPRO,
+        // aunque hoy hayan cambiado de área.
+        const historical = await fetchPaged(() => sb.from('seguimientos')
+          .select('analista_id,analistas(nombre)')
+          .eq('area_id', cproAreaId)
+          .order('fecha', { ascending:false }), 1000, 10000);
+        for (const x of historical) {
+          const n = x.analistas?.nombre;
+          if (x.analista_id && n) people.set(x.analista_id, n);
+        }
+      }
+
+      const selectedOwner = owner.value;
+      owner.innerHTML = '<option value="">Todas las CPRO</option>' +
+        [...people.entries()]
+          .sort((a,b) => String(a[1]).localeCompare(String(b[1]),'es'))
+          .map(([id,n]) => `<option value="${esc(id)}">${esc(n)}</option>`)
+          .join('');
+      if ([...owner.options].some(o => o.value === selectedOwner)) owner.value = selectedOwner;
+      owner.dataset.loaded = '1';
+
+      const regions = new Set();
+      try {
+        if (typeof stores !== 'undefined' && Array.isArray(stores)) {
+          stores.forEach(s => { if (s?.region) regions.add(String(s.region).trim()); });
+        }
+      } catch (_) {}
+      const { data: storeRows } = await sb.from('tiendas')
+        .select('region').not('region','is',null).limit(5000);
+      for (const x of storeRows || []) if (x.region) regions.add(String(x.region).trim());
+
+      const selectedRegion = region.value;
+      region.innerHTML = '<option value="">Todas las regiones</option>' +
+        [...regions].filter(Boolean)
+          .sort((a,b) => a.localeCompare(b,'es',{numeric:true}))
+          .map(r => `<option value="${esc(r)}">${esc(r)}</option>`)
+          .join('');
+      if ([...region.options].some(o => o.value === selectedRegion)) region.value = selectedRegion;
+      region.dataset.loaded = '1';
+    } catch (e) {
+      console.warn('No pude cargar filtros CPRO:', e);
+    }
+  }
+
+  async function fileLinks(files) {
+    const out = [];
+    for (const f of files || []) {
+      let url = '#';
+      try {
+        const r = await sb.storage.from('evidencias')
+          .createSignedUrl(f.ruta_archivo, 3600);
+        url = r.data?.signedUrl || '#';
+      } catch (_) {}
+      out.push(`<a class="cpro-hist-file" href="${esc(url)}" target="_blank" rel="noopener">📎 ${esc(f.nombre_archivo || 'Evidencia')}</a>`);
+    }
+    return out.join('');
+  }
+
+  function readFilters() {
+    const det = detOf(document.querySelector('#cproHistDet')?.value);
+    const analystId = document.querySelector('#cproHistOwner')?.value || '';
+    const analystName = document.querySelector('#cproHistOwner')?.selectedOptions?.[0]?.textContent || '';
+    const region = document.querySelector('#cproHistRegion')?.value || '';
+    const kind = document.querySelector('#cproHistKind')?.value || 'ALL';
+    return { det, analystId, analystName, region, kind };
+  }
+
+  function applyCommonFilters(q, f, dateColumn) {
+    if (f.det) q = q.eq('determinante', f.det);
+    if (f.analystId) q = q.eq('analista_id', f.analystId);
+    if (f.region) q = q.eq('region', f.region);
+    return q.order(dateColumn, { ascending:false });
+  }
+
+  async function searchHistory() {
+    const f = readFilters();
+    const head = document.querySelector('#cproHistHead');
+    const box = document.querySelector('#cproHistResults');
+    const exportBtn = document.querySelector('#cproHistExport');
+    const tags = document.querySelector('#cproHistFilterTags');
+
+    if (!f.det && !f.analystId && !f.region) {
+      box.innerHTML = '<div class="empty">Selecciona una determinante, una CPRO o una región para buscar.</div>';
+      head.innerHTML = '';
+      tags.innerHTML = '';
+      cproHistoryRows = [];
+      exportBtn.disabled = true;
+      return;
+    }
+
+    document.querySelector('#cproHistDet').value = f.det;
+    box.innerHTML = '<div class="empty">Buscando histórico…</div>';
+    head.innerHTML = '';
+    exportBtn.disabled = true;
+    cproHistoryRows = [];
+
+    const filterTags = [];
+    if (f.det) filterTags.push(`Determinante: ${f.det}`);
+    if (f.analystId) filterTags.push(`CPRO: ${f.analystName}`);
+    if (f.region) filterTags.push(`Región: ${f.region}`);
+    if (f.kind !== 'ALL') filterTags.push(`Tipo: ${f.kind}`);
+    tags.innerHTML = filterTags.map(x => `<span class="cpro-hist-filtertag">${esc(x)}</span>`).join('');
+
+    try {
+      let followups = [];
+      let activities = [];
+
+      if (f.kind === 'ALL' || f.kind === 'SEGUIMIENTO') {
+        followups = await fetchPaged(() => {
+          let q = sb.from('seguimientos').select(`
+            id,fecha,determinante,region,motivo,comentario,area_id,analista_id,
+            analistas(nombre),
+            tipos_seguimiento(nombre),
+            seguimiento_personas(personas(nombre_completo)),
+            evidencias(id,nombre_archivo,ruta_archivo,tipo_archivo)
+          `);
+          return applyCommonFilters(q, f, 'fecha');
+        });
+      }
+
+      if (f.kind === 'ALL' || f.kind === 'ACTIVIDAD') {
+        activities = await fetchPaged(() => {
+          let q = sb.from('actividades').select(`
+            id,inicio,fin,estatus,determinante,region,notas,cierre,area_id,analista_id,
+            actividad_manual,
+            analistas!actividades_analista_id_fkey(nombre),
+            tipos_actividad(nombre)
+          `);
+          return applyCommonFilters(q, f, 'inicio');
+        });
+      }
+
+      const rowsF = followups.map(x => ({
+        kind:'SEGUIMIENTO', id:x.id, date:x.fecha, end:null,
+        owner:x.analistas?.nombre || 'SIN NOMBRE', analystId:x.analista_id,
+        title:x.tipos_seguimiento?.nombre || 'SEGUIMIENTO',
+        det:x.determinante || '', region:x.region || '', status:'',
+        motivo:x.motivo || '', comentario:x.comentario || '',
+        people:(x.seguimiento_personas || []).map(y => y.personas?.nombre_completo).filter(Boolean),
+        files:x.evidencias || []
+      }));
+
+      const rowsA = activities.map(x => ({
+        kind:'ACTIVIDAD', id:x.id, date:x.inicio, end:x.fin,
+        owner:x.analistas?.nombre || 'SIN NOMBRE', analystId:x.analista_id,
+        title:x.tipos_actividad?.nombre || x.actividad_manual || 'ACTIVIDAD',
+        det:x.determinante || '', region:x.region || '', status:x.estatus || '',
+        motivo:x.notas || '', comentario:x.cierre || '',
+        people:[], files:[]
+      }));
+
+      cproHistoryRows = [...rowsF, ...rowsA]
+        .sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+      const uniquePeople = new Set(cproHistoryRows.map(x => x.owner).filter(Boolean));
+      const uniqueStores = new Set(cproHistoryRows.map(x => x.det).filter(Boolean));
+
+      head.innerHTML = `
+        <div class="cpro-hist-summary">
+          <div class="cpro-hist-kpi"><strong>${cproHistoryRows.length}</strong><span>Registros históricos</span></div>
+          <div class="cpro-hist-kpi"><strong>${rowsF.length}</strong><span>Seguimientos</span></div>
+          <div class="cpro-hist-kpi"><strong>${uniqueStores.size}</strong><span>Tiendas</span></div>
+          <div class="cpro-hist-kpi"><strong>${uniquePeople.size}</strong><span>Personas que registraron</span></div>
+        </div>`;
+
+      if (!cproHistoryRows.length) {
+        box.innerHTML = '<div class="empty">No encontré registros con esos filtros.</div>';
+        return;
+      }
+
+      const cards = [];
+      for (const x of cproHistoryRows) {
+        const files = await fileLinks(x.files);
+        cards.push(`
+          <div class="cpro-hist-card">
+            <div class="cpro-hist-head">
+              <div>
+                <div class="cpro-hist-owner"><span class="cpro-hist-kind">${esc(x.kind)}</span>${esc(x.owner)}</div>
+                <div class="cpro-hist-type">${esc(x.title)}</div>
+              </div>
+              <div class="cpro-hist-date">${fmt(x.date)}</div>
+            </div>
+            <div class="cpro-hist-meta">
+              ${x.det ? `🏪 ${esc(x.det)}` : '🏪 SIN DETERMINANTE'}
+              ${x.region ? ` · 📍 ${esc(x.region)}` : ''}
+              ${x.status ? ` · ${esc(x.status)}` : ''}
+              ${x.end ? ` · Finalizó ${fmt(x.end)}` : ''}
+            </div>
+            ${x.people.length ? `<div class="cpro-hist-text"><b>Promotor(es):</b> ${esc(x.people.join(', '))}</div>` : ''}
+            ${x.motivo ? `<div class="cpro-hist-text"><b>${x.kind === 'ACTIVIDAD' ? 'Nota' : 'Motivo'}:</b> ${esc(x.motivo)}</div>` : ''}
+            ${x.comentario ? `<div class="cpro-hist-text"><b>${x.kind === 'ACTIVIDAD' ? 'Cierre' : 'Seguimiento'}:</b> ${esc(x.comentario)}</div>` : ''}
+            ${files ? `<div class="cpro-hist-files">${files}</div>` : ''}
+          </div>`);
+      }
+
+      box.innerHTML = cards.join('');
+      exportBtn.disabled = false;
+    } catch (e) {
+      box.innerHTML = `<div class="empty">No pude cargar el histórico: ${esc(e.message)}</div>`;
+      cproHistoryRows = [];
+      exportBtn.disabled = true;
+    }
+  }
+
+  function clearFilters() {
+    document.querySelector('#cproHistDet').value = '';
+    document.querySelector('#cproHistOwner').value = '';
+    document.querySelector('#cproHistRegion').value = '';
+    document.querySelector('#cproHistKind').value = 'ALL';
+    document.querySelector('#cproHistFilterTags').innerHTML = '';
+    document.querySelector('#cproHistHead').innerHTML = '';
+    document.querySelector('#cproHistResults').innerHTML = '<div class="empty">Selecciona al menos un filtro para consultar el histórico.</div>';
+    document.querySelector('#cproHistExport').disabled = true;
+    cproHistoryRows = [];
+  }
+
+  function exportExcel() {
+    if (!cproHistoryRows.length) return;
+    if (typeof XLSX === 'undefined') {
+      alert('No está disponible el generador de Excel. Recarga la página con Ctrl + F5.');
+      return;
+    }
+
+    const f = readFilters();
+    const rows = cproHistoryRows.map(x => ({
+      'TIPO REGISTRO': x.kind,
+      'FECHA': fmt(x.date),
+      'FECHA FIN': x.end ? fmt(x.end) : '',
+      'CPRO / RESPONSABLE': x.owner,
+      'DETERMINANTE': x.det,
+      'REGIÓN': x.region,
+      'ACTIVIDAD / TIPO SEGUIMIENTO': x.title,
+      'ESTATUS': x.status,
+      'PROMOTOR(ES)': x.people.join(', '),
+      'MOTIVO / NOTA': x.motivo,
+      'SEGUIMIENTO / CIERRE': x.comentario
+    }));
+
+    const resumen = [
+      ['REPORTE','HISTÓRICO GENERAL CPRO'],
+      ['DETERMINANTE',f.det || 'TODAS'],
+      ['CPRO',f.analystId ? f.analystName : 'TODAS'],
+      ['REGIÓN',f.region || 'TODAS'],
+      ['TIPO',f.kind === 'ALL' ? 'TODOS' : f.kind],
+      ['TOTAL REGISTROS',cproHistoryRows.length],
+      ['SEGUIMIENTOS',cproHistoryRows.filter(x => x.kind === 'SEGUIMIENTO').length],
+      ['ACTIVIDADES',cproHistoryRows.filter(x => x.kind === 'ACTIVIDAD').length]
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.json_to_sheet(rows);
+    ws1['!cols'] = [
+      {wch:16},{wch:20},{wch:20},{wch:24},{wch:14},{wch:14},
+      {wch:34},{wch:16},{wch:35},{wch:50},{wch:60}
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(resumen);
+    ws2['!cols'] = [{wch:24},{wch:40}];
+    XLSX.utils.book_append_sheet(wb, ws1, 'HISTORICO');
+    XLSX.utils.book_append_sheet(wb, ws2, 'RESUMEN');
+
+    const bits = ['CPRO'];
+    if (f.det) bits.push(f.det);
+    if (f.region) bits.push(String(f.region).replace(/[^A-Za-z0-9.-]/g,'_'));
+    if (f.analystId) bits.push(String(f.analystName).replace(/[^A-Za-z0-9.-]/g,'_'));
+    const name = `Historico_${bits.join('_')}.xlsx`;
+    XLSX.writeFile(wb, name);
+  }
+
+  function start() {
+    injectStyles();
+    injectUI();
+    document.querySelector('#globalAreaSelect')?.addEventListener('change', () => {
+      setTimeout(() => {
+        syncVisibility();
+        const owner = document.querySelector('#cproHistOwner');
+        const region = document.querySelector('#cproHistRegion');
+        if (owner) owner.dataset.loaded = '';
+        if (region) region.dataset.loaded = '';
+      }, 350);
+    });
+    setInterval(syncVisibility, 1200);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();
   </script>
 </body>
 </html>
