@@ -852,24 +852,123 @@
         });
       }
 
-      const rowsF = followups.map(x => ({
-        kind:'SEGUIMIENTO', id:x.id, date:x.fecha, end:null,
-        owner:x.analistas?.nombre || 'SIN NOMBRE', analystId:x.analista_id,
-        title:x.tipos_seguimiento?.nombre || 'SEGUIMIENTO',
-        det:x.determinante || '', region:x.region || '', status:'',
-        motivo:x.motivo || '', comentario:x.comentario || '',
-        people:(x.seguimiento_personas || []).map(y => y.personas?.nombre_completo).filter(Boolean),
-        files:x.evidencias || []
-      }));
+      // ============================================================
+      // PROMOTORES VINCULADOS A CADA SEGUIMIENTO
+      // Se consultan explícitamente por seguimiento_id para evitar que
+      // una relación embebida vacía deje el Excel sin nombres.
+      // ============================================================
+      const promotersByFollowup = new Map();
 
-      const rowsA = activities.map(x => ({
-        kind:'ACTIVIDAD', id:x.id, date:x.inicio, end:x.fin,
-        owner:x.analistas?.nombre || 'SIN NOMBRE', analystId:x.analista_id,
-        title:x.tipos_actividad?.nombre || x.actividad_manual || 'ACTIVIDAD',
-        det:x.determinante || '', region:x.region || '', status:x.estatus || '',
-        motivo:x.notas || '', comentario:x.cierre || '',
-        people:[], files:[]
-      }));
+      const followupIds = followups.map(x => x.id).filter(Boolean);
+      const chunkSize = 200;
+
+      for (let i = 0; i < followupIds.length; i += chunkSize) {
+        const ids = followupIds.slice(i, i + chunkSize);
+
+        const { data: links, error: linksError } = await sb
+          .from('seguimiento_personas')
+          .select('seguimiento_id,persona_id,personas(nombre_completo,region,determinante)')
+          .in('seguimiento_id', ids)
+          .range(0, 9999);
+
+        if (linksError) {
+          console.warn('No pude cargar promotores vinculados:', linksError.message);
+        } else {
+          for (const link of (links || [])) {
+            const name = link.personas?.nombre_completo;
+            if (!name) continue;
+            if (!promotersByFollowup.has(link.seguimiento_id)) {
+              promotersByFollowup.set(link.seguimiento_id, []);
+            }
+            const arr = promotersByFollowup.get(link.seguimiento_id);
+            const item = {
+              name,
+              region: link.personas?.region || '',
+              det: link.personas?.determinante || ''
+            };
+            if (!arr.some(x => x.name === item.name && x.region === item.region && x.det === item.det)) {
+              arr.push(item);
+            }
+          }
+        }
+      }
+
+      // ============================================================
+      // REGIÓN DE RESPALDO POR DETERMINANTE
+      // Si el seguimiento antiguo no guardó región, la recuperamos
+      // desde la tienda; si tampoco existe, usamos la región del promotor.
+      // ============================================================
+      const storeRegionByDet = new Map();
+      const allDets = [...new Set(
+        [...followups, ...activities]
+          .map(x => String(x.determinante || '').trim())
+          .filter(Boolean)
+      )];
+
+      for (let i = 0; i < allDets.length; i += 200) {
+        const dets = allDets.slice(i, i + 200);
+        const { data: storeRegionRows, error: storeRegionError } = await sb
+          .from('tiendas')
+          .select('determinante,region')
+          .in('determinante', dets)
+          .range(0, 9999);
+
+        if (!storeRegionError) {
+          for (const s of (storeRegionRows || [])) {
+            if (s?.determinante && s?.region) {
+              storeRegionByDet.set(String(s.determinante).trim(), String(s.region).trim());
+            }
+          }
+        }
+      }
+
+      const rowsF = followups.map(x => {
+        const embedded = (x.seguimiento_personas || [])
+          .map(y => y.personas?.nombre_completo)
+          .filter(Boolean);
+
+        const explicitItems = promotersByFollowup.get(x.id) || [];
+        const explicitNames = explicitItems.map(y => y.name).filter(Boolean);
+        const people = [...new Set([...embedded, ...explicitNames])];
+
+        const promoterRegions = [...new Set(
+          explicitItems.map(y => String(y.region || '').trim()).filter(Boolean)
+        )];
+
+        const det = String(x.determinante || '').trim();
+        const resolvedRegion =
+          String(x.region || '').trim() ||
+          promoterRegions[0] ||
+          storeRegionByDet.get(det) ||
+          '';
+
+        return {
+          kind:'SEGUIMIENTO', id:x.id, date:x.fecha, end:null,
+          owner:x.analistas?.nombre || 'SIN NOMBRE', analystId:x.analista_id,
+          title:x.tipos_seguimiento?.nombre || 'SEGUIMIENTO',
+          det, region:resolvedRegion, promoterRegions, status:'',
+          motivo:x.motivo || '', comentario:x.comentario || '',
+          people,
+          files:x.evidencias || []
+        };
+      });
+
+      const rowsA = activities.map(x => {
+        const det = String(x.determinante || '').trim();
+        const resolvedRegion =
+          String(x.region || '').trim() ||
+          storeRegionByDet.get(det) ||
+          '';
+
+        return {
+          kind:'ACTIVIDAD', id:x.id, date:x.inicio, end:x.fin,
+          owner:x.analistas?.nombre || 'SIN NOMBRE', analystId:x.analista_id,
+          title:x.tipos_actividad?.nombre || x.actividad_manual || 'ACTIVIDAD',
+          det, region:resolvedRegion, promoterRegions:[], status:x.estatus || '',
+          motivo:x.notas || '', comentario:x.cierre || '',
+          people:[], files:[]
+        };
+      });
 
       cproHistoryRows = [...rowsF, ...rowsA]
         .sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
@@ -908,7 +1007,10 @@
               ${x.status ? ` · ${esc(x.status)}` : ''}
               ${x.end ? ` · Finalizó ${fmt(x.end)}` : ''}
             </div>
-            ${x.people.length ? `<div class="cpro-hist-text"><b>Promotor(es):</b> ${esc(x.people.join(', '))}</div>` : ''}
+            ${x.kind === 'SEGUIMIENTO'
+              ? `<div class="cpro-hist-text"><b>Promotor(es):</b> ${x.people.length ? esc(x.people.join(', ')) : '<span style="opacity:.55">SIN PROMOTOR VINCULADO</span>'}</div>
+                 <div class="cpro-hist-text"><b>Región:</b> ${x.region ? esc(x.region) : '<span style="opacity:.55">SIN REGIÓN</span>'}</div>`
+              : ''}
             ${x.motivo ? `<div class="cpro-hist-text"><b>${x.kind === 'ACTIVIDAD' ? 'Nota' : 'Motivo'}:</b> ${esc(x.motivo)}</div>` : ''}
             ${x.comentario ? `<div class="cpro-hist-text"><b>${x.kind === 'ACTIVIDAD' ? 'Cierre' : 'Seguimiento'}:</b> ${esc(x.comentario)}</div>` : ''}
             ${files ? `<div class="cpro-hist-files">${files}</div>` : ''}
@@ -950,10 +1052,11 @@
       'FECHA FIN': x.end ? fmt(x.end) : '',
       'CPRO / RESPONSABLE': x.owner,
       'DETERMINANTE': x.det,
-      'REGIÓN': x.region,
+      'REGIÓN': x.region || 'SIN REGIÓN',
+      'REGIÓN PROMOTOR(ES)': x.promoterRegions?.length ? x.promoterRegions.join(', ') : (x.kind === 'SEGUIMIENTO' ? (x.region || 'SIN REGIÓN') : ''),
       'ACTIVIDAD / TIPO SEGUIMIENTO': x.title,
       'ESTATUS': x.status,
-      'PROMOTOR(ES)': x.people.join(', '),
+      'PROMOTOR(ES) SELECCIONADO(S)': x.people.length ? x.people.join(', ') : 'SIN PROMOTOR VINCULADO',
       'MOTIVO / NOTA': x.motivo,
       'SEGUIMIENTO / CIERRE': x.comentario
     }));
@@ -972,8 +1075,8 @@
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.json_to_sheet(rows);
     ws1['!cols'] = [
-      {wch:16},{wch:20},{wch:20},{wch:24},{wch:14},{wch:14},
-      {wch:34},{wch:16},{wch:35},{wch:50},{wch:60}
+      {wch:16},{wch:20},{wch:20},{wch:24},{wch:14},{wch:16},
+      {wch:22},{wch:34},{wch:16},{wch:35},{wch:50},{wch:60}
     ];
     const ws2 = XLSX.utils.aoa_to_sheet(resumen);
     ws2['!cols'] = [{wch:24},{wch:40}];
