@@ -636,6 +636,10 @@
                 <option value="">Todas las regiones</option>
               </select>
             </label>
+            <label>Promotor
+              <input id="cproHistPromoter" list="cproHistPromoterList" placeholder="Nombre del promotor..." autocomplete="off">
+              <datalist id="cproHistPromoterList"></datalist>
+            </label>
             <label>Tipo de registro
               <select id="cproHistKind">
                 <option value="ALL">Todo</option>
@@ -652,8 +656,8 @@
           </div>
 
           <div class="cpro-hist-help">
-            Puedes buscar por determinante, por una integrante de CPRO, por región o combinar los filtros.
-            El resultado incluye el histórico disponible sin limitarlo a un día.
+            Puedes buscar por determinante, CPRO responsable, región o promotor y combinar los filtros.
+            El resultado incluye seguimientos y actividades históricas, incluyendo las personas/promotores seleccionados.
           </div>
 
           <div id="cproHistFilterTags"></div>
@@ -706,8 +710,9 @@
   async function loadFilterOptions() {
     const owner = document.querySelector('#cproHistOwner');
     const region = document.querySelector('#cproHistRegion');
-    if (!owner || !region) return;
-    if (owner.dataset.loaded === '1' && region.dataset.loaded === '1') return;
+    const promoterList = document.querySelector('#cproHistPromoterList');
+    if (!owner || !region || !promoterList) return;
+    if (owner.dataset.loaded === '1' && region.dataset.loaded === '1' && promoterList.dataset.loaded === '1') return;
 
     try {
       const cproAreaId = await getCPROAreaId();
@@ -759,6 +764,22 @@
           .join('');
       if ([...region.options].some(o => o.value === selectedRegion)) region.value = selectedRegion;
       region.dataset.loaded = '1';
+
+      // Lista de promotores/personas disponibles para búsqueda.
+      const { data: promoterRows } = await sb.from('personas')
+        .select('nombre_completo')
+        .not('nombre_completo','is',null)
+        .order('nombre_completo')
+        .limit(10000);
+
+      const promoterNames = [...new Set(
+        (promoterRows || []).map(x => String(x.nombre_completo || '').trim()).filter(Boolean)
+      )];
+
+      promoterList.innerHTML = promoterNames
+        .map(n => `<option value="${esc(n)}"></option>`)
+        .join('');
+      promoterList.dataset.loaded = '1';
     } catch (e) {
       console.warn('No pude cargar filtros CPRO:', e);
     }
@@ -783,14 +804,16 @@
     const analystId = document.querySelector('#cproHistOwner')?.value || '';
     const analystName = document.querySelector('#cproHistOwner')?.selectedOptions?.[0]?.textContent || '';
     const region = document.querySelector('#cproHistRegion')?.value || '';
+    const promoter = String(document.querySelector('#cproHistPromoter')?.value || '').trim();
     const kind = document.querySelector('#cproHistKind')?.value || 'ALL';
-    return { det, analystId, analystName, region, kind };
+    return { det, analystId, analystName, region, promoter, kind };
   }
 
   function applyCommonFilters(q, f, dateColumn) {
     if (f.det) q = q.eq('determinante', f.det);
     if (f.analystId) q = q.eq('analista_id', f.analystId);
-    if (f.region) q = q.eq('region', f.region);
+    // La región se filtra después de reconstruirla desde tienda/promotor,
+    // para no perder registros históricos donde quedó vacía.
     return q.order(dateColumn, { ascending:false });
   }
 
@@ -801,8 +824,8 @@
     const exportBtn = document.querySelector('#cproHistExport');
     const tags = document.querySelector('#cproHistFilterTags');
 
-    if (!f.det && !f.analystId && !f.region) {
-      box.innerHTML = '<div class="empty">Selecciona una determinante, una CPRO o una región para buscar.</div>';
+    if (!f.det && !f.analystId && !f.region && !f.promoter) {
+      box.innerHTML = '<div class="empty">Selecciona una determinante, una CPRO, una región o un promotor para buscar.</div>';
       head.innerHTML = '';
       tags.innerHTML = '';
       cproHistoryRows = [];
@@ -820,6 +843,7 @@
     if (f.det) filterTags.push(`Determinante: ${f.det}`);
     if (f.analystId) filterTags.push(`CPRO: ${f.analystName}`);
     if (f.region) filterTags.push(`Región: ${f.region}`);
+    if (f.promoter) filterTags.push(`Promotor: ${f.promoter}`);
     if (f.kind !== 'ALL') filterTags.push(`Tipo: ${f.kind}`);
     tags.innerHTML = filterTags.map(x => `<span class="cpro-hist-filtertag">${esc(x)}</span>`).join('');
 
@@ -846,7 +870,8 @@
             id,inicio,fin,estatus,determinante,region,notas,cierre,area_id,analista_id,
             actividad_manual,
             analistas!actividades_analista_id_fkey(nombre),
-            tipos_actividad(nombre)
+            tipos_actividad(nombre),
+            actividad_asistentes(personas(nombre_completo,region,determinante))
           `);
           return applyCommonFilters(q, f, 'inicio');
         });
@@ -881,6 +906,45 @@
               promotersByFollowup.set(link.seguimiento_id, []);
             }
             const arr = promotersByFollowup.get(link.seguimiento_id);
+            const item = {
+              name,
+              region: link.personas?.region || '',
+              det: link.personas?.determinante || ''
+            };
+            if (!arr.some(x => x.name === item.name && x.region === item.region && x.det === item.det)) {
+              arr.push(item);
+            }
+          }
+        }
+      }
+
+      // ============================================================
+      // PROMOTORES / PERSONAS VINCULADAS A ACTIVIDADES
+      // En "Nueva actividad", la persona seleccionada se guarda en
+      // actividad_asistentes, no en seguimiento_personas.
+      // ============================================================
+      const peopleByActivity = new Map();
+      const activityIds = activities.map(x => x.id).filter(Boolean);
+
+      for (let i = 0; i < activityIds.length; i += chunkSize) {
+        const ids = activityIds.slice(i, i + chunkSize);
+
+        const { data: activityLinks, error: activityLinksError } = await sb
+          .from('actividad_asistentes')
+          .select('actividad_id,persona_id,personas(nombre_completo,region,determinante)')
+          .in('actividad_id', ids)
+          .range(0, 9999);
+
+        if (activityLinksError) {
+          console.warn('No pude cargar personas de actividades:', activityLinksError.message);
+        } else {
+          for (const link of (activityLinks || [])) {
+            const name = link.personas?.nombre_completo;
+            if (!name) continue;
+            if (!peopleByActivity.has(link.actividad_id)) {
+              peopleByActivity.set(link.actividad_id, []);
+            }
+            const arr = peopleByActivity.get(link.actividad_id);
             const item = {
               name,
               region: link.personas?.region || '',
@@ -954,9 +1018,32 @@
       });
 
       const rowsA = activities.map(x => {
+        const embeddedItems = (x.actividad_asistentes || [])
+          .map(y => ({
+            name: y.personas?.nombre_completo || '',
+            region: y.personas?.region || '',
+            det: y.personas?.determinante || ''
+          }))
+          .filter(y => y.name);
+
+        const explicitItems = peopleByActivity.get(x.id) || [];
+        const allItems = [...embeddedItems];
+
+        for (const item of explicitItems) {
+          if (!allItems.some(y => y.name === item.name && y.region === item.region && y.det === item.det)) {
+            allItems.push(item);
+          }
+        }
+
+        const people = [...new Set(allItems.map(y => y.name).filter(Boolean))];
+        const promoterRegions = [...new Set(
+          allItems.map(y => String(y.region || '').trim()).filter(Boolean)
+        )];
+
         const det = String(x.determinante || '').trim();
         const resolvedRegion =
           String(x.region || '').trim() ||
+          promoterRegions[0] ||
           storeRegionByDet.get(det) ||
           '';
 
@@ -964,13 +1051,20 @@
           kind:'ACTIVIDAD', id:x.id, date:x.inicio, end:x.fin,
           owner:x.analistas?.nombre || 'SIN NOMBRE', analystId:x.analista_id,
           title:x.tipos_actividad?.nombre || x.actividad_manual || 'ACTIVIDAD',
-          det, region:resolvedRegion, promoterRegions:[], status:x.estatus || '',
+          det, region:resolvedRegion, promoterRegions, status:x.estatus || '',
           motivo:x.notas || '', comentario:x.cierre || '',
-          people:[], files:[]
+          people, files:[]
         };
       });
 
+      // Filtros finales con la información ya reconstruida.
+      const promoterNeedle = String(f.promoter || '').trim().toLocaleLowerCase('es');
+
       cproHistoryRows = [...rowsF, ...rowsA]
+        .filter(x => !f.region || String(x.region || '').trim() === f.region)
+        .filter(x => !promoterNeedle || (x.people || []).some(
+          n => String(n || '').toLocaleLowerCase('es').includes(promoterNeedle)
+        ))
         .sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
 
       const uniquePeople = new Set(cproHistoryRows.map(x => x.owner).filter(Boolean));
@@ -1007,10 +1101,11 @@
               ${x.status ? ` · ${esc(x.status)}` : ''}
               ${x.end ? ` · Finalizó ${fmt(x.end)}` : ''}
             </div>
-            ${x.kind === 'SEGUIMIENTO'
-              ? `<div class="cpro-hist-text"><b>Promotor(es):</b> ${x.people.length ? esc(x.people.join(', ')) : '<span style="opacity:.55">SIN PROMOTOR VINCULADO</span>'}</div>
-                 <div class="cpro-hist-text"><b>Región:</b> ${x.region ? esc(x.region) : '<span style="opacity:.55">SIN REGIÓN</span>'}</div>`
-              : ''}
+            <div class="cpro-hist-text">
+              <b>${x.kind === 'ACTIVIDAD' ? 'Promotor(es) / persona(s) seleccionada(s)' : 'Promotor(es)'}:</b>
+              ${x.people.length ? esc(x.people.join(', ')) : '<span style="opacity:.55">SIN PERSONA VINCULADA</span>'}
+            </div>
+            <div class="cpro-hist-text"><b>Región:</b> ${x.region ? esc(x.region) : '<span style="opacity:.55">SIN REGIÓN</span>'}</div>
             ${x.motivo ? `<div class="cpro-hist-text"><b>${x.kind === 'ACTIVIDAD' ? 'Nota' : 'Motivo'}:</b> ${esc(x.motivo)}</div>` : ''}
             ${x.comentario ? `<div class="cpro-hist-text"><b>${x.kind === 'ACTIVIDAD' ? 'Cierre' : 'Seguimiento'}:</b> ${esc(x.comentario)}</div>` : ''}
             ${files ? `<div class="cpro-hist-files">${files}</div>` : ''}
@@ -1030,6 +1125,7 @@
     document.querySelector('#cproHistDet').value = '';
     document.querySelector('#cproHistOwner').value = '';
     document.querySelector('#cproHistRegion').value = '';
+    document.querySelector('#cproHistPromoter').value = '';
     document.querySelector('#cproHistKind').value = 'ALL';
     document.querySelector('#cproHistFilterTags').innerHTML = '';
     document.querySelector('#cproHistHead').innerHTML = '';
@@ -1056,7 +1152,7 @@
       'REGIÓN PROMOTOR(ES)': x.promoterRegions?.length ? x.promoterRegions.join(', ') : (x.kind === 'SEGUIMIENTO' ? (x.region || 'SIN REGIÓN') : ''),
       'ACTIVIDAD / TIPO SEGUIMIENTO': x.title,
       'ESTATUS': x.status,
-      'PROMOTOR(ES) SELECCIONADO(S)': x.people.length ? x.people.join(', ') : 'SIN PROMOTOR VINCULADO',
+      'PROMOTOR(ES) / PERSONA(S) SELECCIONADA(S)': x.people.length ? x.people.join(', ') : 'SIN PERSONA VINCULADA',
       'MOTIVO / NOTA': x.motivo,
       'SEGUIMIENTO / CIERRE': x.comentario
     }));
@@ -1066,6 +1162,7 @@
       ['DETERMINANTE',f.det || 'TODAS'],
       ['CPRO',f.analystId ? f.analystName : 'TODAS'],
       ['REGIÓN',f.region || 'TODAS'],
+      ['PROMOTOR',f.promoter || 'TODOS'],
       ['TIPO',f.kind === 'ALL' ? 'TODOS' : f.kind],
       ['TOTAL REGISTROS',cproHistoryRows.length],
       ['SEGUIMIENTOS',cproHistoryRows.filter(x => x.kind === 'SEGUIMIENTO').length],
@@ -1087,6 +1184,7 @@
     if (f.det) bits.push(f.det);
     if (f.region) bits.push(String(f.region).replace(/[^A-Za-z0-9.-]/g,'_'));
     if (f.analystId) bits.push(String(f.analystName).replace(/[^A-Za-z0-9.-]/g,'_'));
+    if (f.promoter) bits.push(String(f.promoter).replace(/[^A-Za-z0-9.-]/g,'_'));
     const name = `Historico_${bits.join('_')}.xlsx`;
     XLSX.writeFile(wb, name);
   }
