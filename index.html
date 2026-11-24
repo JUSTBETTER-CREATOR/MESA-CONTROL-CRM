@@ -1211,5 +1211,552 @@
   }
 })();
   </script>
+
+<!-- ============================================================
+     CPRO · PLANEACIÓN DE RETROS POR COBERTURA · 24/11/2026
+     Base: análisis de cobertura compartido por Mariela.
+     ============================================================ -->
+<script>
+(() => {
+  'use strict';
+
+  const SOURCE_DATE = '2026-11-24';
+  const STORES = [{"owner": "KAREN CPRO", "det": "6293", "socio": "SAMS", "store": "Santa Catarina", "region": "R4.1", "start": "10:00", "end": "20:00", "staff": 6, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "1139", "socio": "WM", "store": "La Huasteca", "region": "R4.1", "start": "10:00", "end": "21:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "2465", "socio": "WM", "store": "Saltillo", "region": "R4.4", "start": "10:00", "end": "21:00", "staff": 4, "priority": "SIN TRÁMITES"}, {"owner": "KAREN CPRO", "det": "5241", "socio": "WM", "store": "San Patricio", "region": "R4.4", "start": "10:00", "end": "20:00", "staff": 2, "priority": "SIN TRÁMITES"}, {"owner": "KAREN CPRO", "det": "110", "socio": "CH", "store": "Nuevo Laredo Hipódromo", "region": "R23", "start": "10:00", "end": "20:00", "staff": 2, "priority": "AP SIN FINALIZAR"}, {"owner": "KAREN CPRO", "det": "4941", "socio": "SAMS", "store": "Reynosa", "region": "R23", "start": "10:00", "end": "20:00", "staff": 3, "priority": "AP SIN FINALIZAR"}, {"owner": "KAREN CPRO", "det": "4978", "socio": "SAMS", "store": "Gómez Morín", "region": "R4.1", "start": "11:00", "end": "20:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "1027", "socio": "WM", "store": "Sendero", "region": "R4.1", "start": "11:00", "end": "20:00", "staff": 2, "priority": "SIN TRÁMITES"}, {"owner": "KAREN CPRO", "det": "1833", "socio": "WM", "store": "La Pastora", "region": "R4.3", "start": "15:00", "end": "21:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "3719", "socio": "WM", "store": "Matamoros", "region": "R23", "start": "15:00", "end": "18:00", "staff": 2, "priority": "SIN TRÁMITES"}, {"owner": "KAREN CPRO", "det": "4138", "socio": "WM", "store": "SC Villa Juárez", "region": "R4.3", "start": "16:00", "end": "22:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "2179", "socio": "WM", "store": "San Nicolás", "region": "R4.4", "start": null, "end": null, "staff": 0, "priority": "SIN TRÁMITES"}, {"owner": "SONIA", "det": "25", "socio": "CC", "store": "Galerías Zacatecas", "region": "R19", "start": "10:00", "end": "20:00", "staff": 2, "priority": "SIN TRÁMITES"}, {"owner": "SONIA", "det": "6242", "socio": "SAMS", "store": "Carretera 57", "region": "R19", "start": "10:00", "end": "20:00", "staff": 4, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "4936", "socio": "SAMS", "store": "Uruapan", "region": "R20.2", "start": "10:00", "end": "20:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "6482", "socio": "WM", "store": "Glorieta San Luis", "region": "R19", "start": "11:00", "end": "15:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "123", "socio": "CH", "store": "Fresnillo", "region": "R19", "start": "11:00", "end": "17:00", "staff": 1, "priority": "SIN TRÁMITES"}, {"owner": "SONIA", "det": "6248", "socio": "SAMS", "store": "Albino Corzo", "region": "R15", "start": "11:00", "end": "21:00", "staff": 4, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "3127", "socio": "WM", "store": "Libramiento Norte", "region": "R15", "start": "11:00", "end": "21:00", "staff": 2, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "6294", "socio": "SAMS", "store": "Fresnillo", "region": "R19", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "5171", "socio": "WM", "store": "CD Valles Centro", "region": "R19", "start": "11:00", "end": "20:00", "staff": 1, "priority": "SIN TRÁMITES"}, {"owner": "SONIA", "det": "5296", "socio": "WM", "store": "San Remo", "region": "R19", "start": null, "end": null, "staff": 0, "priority": "SIN TRÁMITES"}, {"owner": "CINTHIA", "det": "6534", "socio": "SAMS", "store": "Pachuca", "region": "R11", "start": "10:00", "end": "20:00", "staff": 2, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "2349", "socio": "WM", "store": "Acapulco", "region": "R13.2", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "5239", "socio": "WM", "store": "Iguala de Independencia", "region": "R13.2", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "6258", "socio": "SAMS", "store": "Periférico ITESO", "region": "R20.1", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "6226", "socio": "SAMS", "store": "La Piedad", "region": "R20.1", "start": "11:00", "end": "20:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "3588", "socio": "WM", "store": "Paraíso Cuernavaca", "region": "R13.1", "start": "12:00", "end": "19:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "2446", "socio": "WM", "store": "Averanda", "region": "R13.1", "start": null, "end": null, "staff": 0, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "1205", "socio": "WM", "store": "Alijadores", "region": "R3", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "4819", "socio": "WM", "store": "Fuentes Piedras Negras", "region": "R21.1", "start": "11:00", "end": "20:00", "staff": 2, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "6881", "socio": "WM", "store": "Boulevard República", "region": "R21.1", "start": "11:00", "end": "20:00", "staff": 2, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "1623", "socio": "WM", "store": "CD Cuauhtémoc", "region": "R22", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "5728", "socio": "WM", "store": "Norte 2000", "region": "R22", "start": "11:00", "end": "20:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "2304", "socio": "WM", "store": "Mexicali", "region": "R1", "start": null, "end": null, "staff": 0, "priority": "SIN TRÁMITES"}];
+
+  const BLOCKS = [
+    {key:'10:00', label:'A partir de las 10:00', contact:'10:15', targetTime:'11:00', expected:10},
+    {key:'11:00', label:'A partir de las 11:00', contact:'11:15', targetTime:'12:00', expected:27},
+    {key:'12:00', label:'A partir de las 12:00', contact:'12:15', targetTime:'13:00', expected:28},
+    {key:'15:00', label:'A partir de las 15:00', contact:'15:15', targetTime:'16:00', expected:30},
+    {key:'16:00', label:'A partir de las 16:00', contact:'16:15', targetTime:'17:00', expected:31},
+    {key:'NONE', label:'Sin cobertura', contact:'TL / LS / RRHH', targetTime:'HOY', expected:35}
+  ];
+
+  let retroRows = [];
+  let retroByDet = new Map();
+  let cproAreaId = null;
+
+  const escRetro = v => String(v ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+
+  function areaIsCPRO() {
+    try {
+      if (typeof activeAreaKey !== 'undefined' && activeAreaKey) {
+        return String(activeAreaKey).toUpperCase() === 'CPRO';
+      }
+    } catch (_) {}
+    const s = document.querySelector('#globalAreaSelect');
+    return (s?.options?.[s.selectedIndex]?.textContent || '').toUpperCase().includes('CPRO');
+  }
+
+  function fmtRetroDate(v) {
+    if (!v) return '—';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('es-MX', {
+      day:'2-digit',month:'2-digit',year:'numeric',
+      hour:'2-digit',minute:'2-digit'
+    });
+  }
+
+  function minOf(hhmm) {
+    if (!hhmm) return null;
+    const [h,m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function add15(hhmm) {
+    if (!hhmm) return '—';
+    const n = minOf(hhmm) + 15;
+    const h = String(Math.floor(n / 60)).padStart(2,'0');
+    const m = String(n % 60).padStart(2,'0');
+    return `${h}:${m}`;
+  }
+
+  function expectedNow(dateStr) {
+    const selected = document.querySelector('#retroPlanDate')?.value || SOURCE_DATE;
+    const today = new Date();
+    const todayStr = [
+      today.getFullYear(),
+      String(today.getMonth()+1).padStart(2,'0'),
+      String(today.getDate()).padStart(2,'0')
+    ].join('-');
+
+    if (selected < todayStr) return 35;
+    if (selected > todayStr) return 0;
+
+    const now = today.getHours()*60 + today.getMinutes();
+    if (now >= minOf('17:00')) return 31;
+    if (now >= minOf('16:00')) return 30;
+    if (now >= minOf('13:00')) return 28;
+    if (now >= minOf('12:00')) return 27;
+    if (now >= minOf('11:00')) return 10;
+    return 0;
+  }
+
+  function contactState(s) {
+    if (!s.start) return {label:'SIN COBERTURA', cls:'no-cover'};
+    const now = new Date();
+    const n = now.getHours()*60 + now.getMinutes();
+    const start = minOf(s.start) + 15;
+    const end = minOf(s.end);
+
+    if (n < start) return {label:`DESDE ${add15(s.start)}`, cls:'waiting'};
+    if (n > end) return {label:'COBERTURA FINALIZADA', cls:'closed'};
+    if (end - n <= 90) return {label:'PRIORIDAD · CIERRA PRONTO', cls:'urgent'};
+    return {label:'CONTACTABLE AHORA', cls:'available'};
+  }
+
+  function injectRetroStyles() {
+    if (document.querySelector('#retroPlanStyles')) return;
+    const st = document.createElement('style');
+    st.id = 'retroPlanStyles';
+    st.textContent = `
+      .retro-plan-shell{display:grid;gap:16px}
+      .retro-plan-toolbar{
+        display:grid;grid-template-columns:170px 1fr 1fr auto auto;
+        gap:10px;align-items:end
+      }
+      .retro-plan-toolbar label{margin:0}
+      .retro-plan-kpis{
+        display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px
+      }
+      .retro-kpi{
+        border:1px solid rgba(13,72,64,.22);
+        background:rgba(255,255,255,.52);padding:14px 15px
+      }
+      .retro-kpi strong{display:block;font-size:26px;line-height:1}
+      .retro-kpi span{
+        display:block;margin-top:5px;font-size:10px;font-weight:900;
+        letter-spacing:.05em;text-transform:uppercase;opacity:.68
+      }
+      .retro-progress{
+        height:13px;border:1px solid rgba(13,72,64,.22);
+        background:rgba(255,255,255,.55);overflow:hidden
+      }
+      .retro-progress > span{display:block;height:100%;background:#0c5148}
+      .retro-plan-meta{
+        display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+        font-size:12px
+      }
+      .retro-block{
+        border:1px solid rgba(13,72,64,.23);
+        background:rgba(255,255,255,.45);margin-top:12px
+      }
+      .retro-block-head{
+        display:flex;align-items:center;justify-content:space-between;gap:12px;
+        padding:11px 13px;border-bottom:1px solid rgba(13,72,64,.18);
+        background:rgba(13,72,64,.045)
+      }
+      .retro-block-head b{font-size:14px}
+      .retro-block-head small{opacity:.72}
+      .retro-table-wrap{overflow:auto}
+      .retro-table{width:100%;border-collapse:collapse;min-width:1000px}
+      .retro-table th,.retro-table td{
+        border-bottom:1px solid rgba(13,72,64,.12);
+        padding:9px 10px;text-align:left;vertical-align:top;font-size:12px
+      }
+      .retro-table th{
+        font-size:10px;letter-spacing:.04em;text-transform:uppercase;
+        background:rgba(255,255,255,.45)
+      }
+      .retro-status{
+        display:inline-block;padding:4px 7px;border:1px solid;
+        font-size:9px;font-weight:900;letter-spacing:.04em
+      }
+      .retro-status.done{border-color:#347861;background:#eaf5f0;color:#1e5c49}
+      .retro-status.pending{border-color:#9d6f32;background:#fff7e7;color:#78521f}
+      .retro-contact{font-weight:850}
+      .retro-contact.available{color:#1d654f}
+      .retro-contact.urgent{color:#a33838}
+      .retro-contact.waiting{color:#806321}
+      .retro-contact.no-cover{color:#a33838}
+      .retro-contact.closed{color:#777}
+      .retro-priority{
+        display:inline-block;padding:3px 6px;border:1px solid rgba(13,72,64,.2);
+        font-size:9px;font-weight:850
+      }
+      .retro-action-btn{padding:6px 8px;font-size:10px;white-space:nowrap}
+      .retro-alert{
+        padding:12px 14px;border-left:4px solid #9b3d3d;
+        background:rgba(155,61,61,.055);font-size:12px;line-height:1.45
+      }
+      .retro-goal{
+        padding:12px 14px;border-left:4px solid #0c5148;
+        background:rgba(12,81,72,.055);font-size:12px;line-height:1.45
+      }
+      @media(max-width:1050px){
+        .retro-plan-toolbar{grid-template-columns:1fr 1fr}
+        .retro-plan-kpis{grid-template-columns:repeat(2,1fr)}
+      }
+      @media(max-width:650px){
+        .retro-plan-toolbar,.retro-plan-kpis{grid-template-columns:1fr}
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function injectRetroUI() {
+    if (document.querySelector('#retroPlanTab')) return;
+
+    const storeTab = document.querySelector('#storeFollowupsTab');
+    const promoterTab = document.querySelector('.tab[data-view="promotor"]');
+    const anchor = storeTab || promoterTab;
+    const main = document.querySelector('main');
+    if (!anchor || !main) return;
+
+    const tab = document.createElement('button');
+    tab.id = 'retroPlanTab';
+    tab.className = 'tab hidden';
+    tab.dataset.view = 'planeacion-retros';
+    tab.textContent = '📞 Planeación de retros';
+    anchor.insertAdjacentElement('afterend', tab);
+
+    const view = document.createElement('section');
+    view.className = 'view';
+    view.id = 'view-planeacion-retros';
+    view.innerHTML = `
+      <div class="window large">
+        <div class="titlebar">
+          <span>📞 PLANEACIÓN DE RETROS · CPRO</span><span>— □ ×</span>
+        </div>
+        <div class="window-body retro-plan-shell">
+          <div class="retro-plan-toolbar">
+            <label>Fecha de seguimiento
+              <input id="retroPlanDate" type="date" value="${SOURCE_DATE}">
+            </label>
+            <label>CPRO responsable
+              <select id="retroPlanOwner"><option value="">Todas</option></select>
+            </label>
+            <label>Bloque de cobertura
+              <select id="retroPlanBlock">
+                <option value="">Todos los horarios</option>
+                <option value="10:00">10:00</option>
+                <option value="11:00">11:00</option>
+                <option value="12:00">12:00</option>
+                <option value="15:00">15:00</option>
+                <option value="16:00">16:00</option>
+                <option value="NONE">Sin cobertura</option>
+              </select>
+            </label>
+            <button class="primary" id="retroPlanRefresh">↻ ACTUALIZAR AVANCE</button>
+            <button id="retroPlanExport">📥 EXCEL</button>
+          </div>
+
+          <div class="retro-plan-toolbar" style="grid-template-columns:1fr 220px 220px">
+            <label>Buscar tienda / determinante
+              <input id="retroPlanSearch" placeholder="Ej. 6293 o Santa Catarina">
+            </label>
+            <label>Estado
+              <select id="retroPlanStatus">
+                <option value="">Todas</option>
+                <option value="PENDING">Pendientes</option>
+                <option value="DONE">Con retro</option>
+              </select>
+            </label>
+            <label>Región
+              <select id="retroPlanRegion"><option value="">Todas</option></select>
+            </label>
+          </div>
+
+          <div class="retro-plan-kpis" id="retroPlanKpis"></div>
+          <div>
+            <div class="retro-plan-meta" id="retroPlanProgressText"></div>
+            <div class="retro-progress"><span id="retroPlanProgressBar" style="width:0%"></span></div>
+          </div>
+
+          <div class="retro-goal">
+            <b>Meta operativa:</b> contactar cada tienda 15 minutos después del inicio de cobertura.
+            Los cortes acumulados esperados son 10, 27, 28, 30 y 31 retros contactables.
+            Las 4 tiendas sin cobertura deben escalarse con TL / LS / RRHH.
+          </div>
+
+          <div id="retroPlanResults"></div>
+
+          <div class="retro-alert">
+            <b>Base de cobertura:</b> 24/11/2026. Esta pestaña usa los horarios del análisis de cobertura
+            como planeación operativa; la asistencia real puede variar. El avance se actualiza leyendo
+            los seguimientos registrados en CPRO para la fecha seleccionada.
+          </div>
+        </div>
+      </div>`;
+
+    main.appendChild(view);
+
+    const owners = [...new Set(STORES.map(x => x.owner))].sort((a,b)=>a.localeCompare(b,'es'));
+    document.querySelector('#retroPlanOwner').innerHTML =
+      '<option value="">Todas</option>' +
+      owners.map(x=>`<option value="${escRetro(x)}">${escRetro(x)}</option>`).join('');
+
+    const regions = [...new Set(STORES.map(x => x.region))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+    document.querySelector('#retroPlanRegion').innerHTML =
+      '<option value="">Todas</option>' +
+      regions.map(x=>`<option value="${escRetro(x)}">${escRetro(x)}</option>`).join('');
+
+    tab.onclick = async () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+      view.classList.add('active');
+      await refreshRetroPlan();
+    };
+
+    ['retroPlanOwner','retroPlanBlock','retroPlanStatus','retroPlanRegion']
+      .forEach(id => document.querySelector('#'+id)?.addEventListener('change', renderRetroPlan));
+
+    document.querySelector('#retroPlanSearch')?.addEventListener('input', renderRetroPlan);
+    document.querySelector('#retroPlanDate')?.addEventListener('change', refreshRetroPlan);
+    document.querySelector('#retroPlanRefresh').onclick = refreshRetroPlan;
+    document.querySelector('#retroPlanExport').onclick = exportRetroPlan;
+
+    syncRetroVisibility();
+  }
+
+  function syncRetroVisibility() {
+    const tab = document.querySelector('#retroPlanTab');
+    const view = document.querySelector('#view-planeacion-retros');
+    if (!tab) return;
+    const ok = areaIsCPRO();
+    tab.classList.toggle('hidden', !ok);
+    if (!ok && view?.classList.contains('active')) {
+      document.querySelector('.tab[data-view="inicio"]')?.click();
+    }
+  }
+
+  async function getCPROArea() {
+    if (cproAreaId) return cproAreaId;
+    const {data,error} = await sb.from('areas').select('id').eq('clave','CPRO').limit(1).maybeSingle();
+    if (error) throw error;
+    cproAreaId = data?.id || null;
+    return cproAreaId;
+  }
+
+  async function refreshRetroPlan() {
+    const btn = document.querySelector('#retroPlanRefresh');
+    if (btn) { btn.disabled = true; btn.textContent = 'ACTUALIZANDO…'; }
+
+    try {
+      const dateStr = document.querySelector('#retroPlanDate')?.value || SOURCE_DATE;
+      const start = new Date(`${dateStr}T00:00:00`);
+      const next = new Date(start);
+      next.setDate(next.getDate()+1);
+      const areaId = await getCPROArea();
+
+      let q = sb.from('seguimientos')
+        .select('id,fecha,determinante,region,motivo,comentario,analista_id,analistas(nombre),tipos_seguimiento(nombre)')
+        .gte('fecha', start.toISOString())
+        .lt('fecha', next.toISOString())
+        .in('determinante', STORES.map(x=>x.det))
+        .order('fecha',{ascending:false});
+
+      if (areaId) q = q.eq('area_id', areaId);
+
+      const {data,error} = await q;
+      if (error) throw error;
+
+      retroRows = data || [];
+      retroByDet = new Map();
+      for (const r of retroRows) {
+        const det = String(r.determinante || '').trim();
+        if (!det) continue;
+        if (!retroByDet.has(det)) retroByDet.set(det, []);
+        retroByDet.get(det).push(r);
+      }
+    } catch (e) {
+      console.warn('Planeación de retros:', e);
+      try { if (typeof toast === 'function') toast('No pude leer las retros: '+e.message); } catch (_) {}
+      retroRows = [];
+      retroByDet = new Map();
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '↻ ACTUALIZAR AVANCE'; }
+      renderRetroPlan();
+    }
+  }
+
+  function filteredStores() {
+    const owner = document.querySelector('#retroPlanOwner')?.value || '';
+    const block = document.querySelector('#retroPlanBlock')?.value || '';
+    const status = document.querySelector('#retroPlanStatus')?.value || '';
+    const region = document.querySelector('#retroPlanRegion')?.value || '';
+    const search = String(document.querySelector('#retroPlanSearch')?.value || '').trim().toLocaleLowerCase('es');
+
+    return STORES.filter(s => {
+      const done = retroByDet.has(s.det);
+      const sBlock = s.start || 'NONE';
+      if (owner && s.owner !== owner) return false;
+      if (block && sBlock !== block) return false;
+      if (region && s.region !== region) return false;
+      if (status === 'DONE' && !done) return false;
+      if (status === 'PENDING' && done) return false;
+      if (search) {
+        const hay = [s.det,s.store,s.socio,s.region,s.owner].join(' ').toLocaleLowerCase('es');
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderRetroPlan() {
+    const list = filteredStores();
+    const allDone = STORES.filter(s => retroByDet.has(s.det)).length;
+    const pending = STORES.length - allDone;
+    const expected = expectedNow();
+    const vsExpected = expected ? Math.round(allDone / expected * 100) : 0;
+    const totalPct = Math.round(allDone / STORES.length * 100);
+
+    const k = document.querySelector('#retroPlanKpis');
+    if (k) k.innerHTML = `
+      <div class="retro-kpi"><strong>${STORES.length}</strong><span>Retros objetivo</span></div>
+      <div class="retro-kpi"><strong>${allDone}</strong><span>Con retro registrada</span></div>
+      <div class="retro-kpi"><strong>${pending}</strong><span>Pendientes</span></div>
+      <div class="retro-kpi"><strong>${expected}</strong><span>Meta esperada al corte</span></div>
+      <div class="retro-kpi"><strong>${expected ? vsExpected+'%' : '—'}</strong><span>Cumplimiento vs corte</span></div>`;
+
+    const progressText = document.querySelector('#retroPlanProgressText');
+    if (progressText) progressText.innerHTML =
+      `<span><b>Avance general:</b> ${allDone} / ${STORES.length} · ${totalPct}%</span>` +
+      `<span><b>Contactables:</b> 31 · <b>Sin cobertura:</b> 4</span>`;
+
+    const bar = document.querySelector('#retroPlanProgressBar');
+    if (bar) bar.style.width = Math.min(100,totalPct)+'%';
+
+    const root = document.querySelector('#retroPlanResults');
+    if (!root) return;
+
+    if (!list.length) {
+      root.innerHTML = '<div class="empty">No hay tiendas con los filtros seleccionados.</div>';
+      return;
+    }
+
+    const groups = BLOCKS.map(b => ({
+      ...b,
+      rows:list.filter(s => (s.start || 'NONE') === b.key)
+    })).filter(g => g.rows.length);
+
+    root.innerHTML = groups.map(g => {
+      const done = g.rows.filter(s=>retroByDet.has(s.det)).length;
+      const rows = g.rows.map(s => {
+        const retros = retroByDet.get(s.det) || [];
+        const latest = retros[0];
+        const isDone = retros.length > 0;
+        const cs = contactState(s);
+        return `
+          <tr>
+            <td><span class="retro-status ${isDone?'done':'pending'}">${isDone?'✓ CON RETRO':'PENDIENTE'}</span></td>
+            <td><b>${escRetro(s.owner)}</b></td>
+            <td><b>${escRetro(s.det)} · ${escRetro(s.store)}</b><br><small>${escRetro(s.socio)} · ${escRetro(s.region)}</small></td>
+            <td>${s.staff}</td>
+            <td>${s.start ? `${s.start}–${s.end}` : 'SIN COBERTURA'}</td>
+            <td><b>${s.start ? add15(s.start) : 'TL / LS / RRHH'}</b></td>
+            <td><span class="retro-contact ${cs.cls}">${escRetro(cs.label)}</span></td>
+            <td><span class="retro-priority">${escRetro(s.priority)}</span></td>
+            <td>${latest ? `<b>${escRetro(latest.analistas?.nombre || '')}</b><br><small>${fmtRetroDate(latest.fecha)} · ${escRetro(latest.tipos_seguimiento?.nombre || 'SEGUIMIENTO')}</small>` : '—'}</td>
+            <td>${!isDone ? `<button class="retro-action-btn" data-retro-go="${s.det}" data-retro-region="${escRetro(s.region)}">REGISTRAR</button>` : ''}</td>
+          </tr>`;
+      }).join('');
+
+      return `
+        <div class="retro-block">
+          <div class="retro-block-head">
+            <div><b>${escRetro(g.label)}</b><br><small>Contacto sugerido: ${escRetro(g.contact)}</small></div>
+            <div><b>${done}/${g.rows.length}</b> atendidas · meta acumulada ${g.expected}</div>
+          </div>
+          <div class="retro-table-wrap">
+            <table class="retro-table">
+              <thead><tr>
+                <th>Estado</th><th>CPRO</th><th>PDV / región</th><th>Personal</th>
+                <th>Cobertura</th><th>Contacto</th><th>Disponibilidad</th><th>Prioridad</th>
+                <th>Última retro</th><th></th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }).join('');
+
+    root.querySelectorAll('[data-retro-go]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelector('.tab[data-view="seguimiento"]')?.click();
+        setTimeout(() => {
+          const store = document.querySelector('#fuStore');
+          const region = document.querySelector('#fuRegion');
+          const reason = document.querySelector('#fuReason');
+          if (store) store.value = btn.dataset.retroGo || '';
+          if (region) region.value = btn.dataset.retroRegion || '';
+          if (reason && !reason.value) reason.value = 'RETRO DE PRODUCTIVIDAD';
+        }, 120);
+      };
+    });
+  }
+
+  function exportRetroPlan() {
+    if (typeof XLSX === 'undefined') {
+      try { if (typeof toast === 'function') toast('No está disponible XLSX'); } catch (_) {}
+      return;
+    }
+
+    const rows = filteredStores().map(s => {
+      const rr = retroByDet.get(s.det) || [];
+      const latest = rr[0];
+      return {
+        'CPRO':s.owner,
+        'DETERMINANTE':s.det,
+        'SOCIO':s.socio,
+        'TIENDA':s.store,
+        'REGIÓN':s.region,
+        'PERSONAL':s.staff,
+        'INICIO COBERTURA':s.start || 'SIN COBERTURA',
+        'SALIDA':s.end || '—',
+        'CONTACTO SUGERIDO':s.start ? add15(s.start) : 'TL / LS / RRHH',
+        'PRIORIDAD':s.priority,
+        'ESTATUS RETRO':rr.length ? 'ATENDIDA' : 'PENDIENTE',
+        'RETROS REGISTRADAS':rr.length,
+        'ÚLTIMA RETRO':latest ? fmtRetroDate(latest.fecha) : '',
+        'REGISTRADA POR':latest?.analistas?.nombre || '',
+        'TIPO':latest?.tipos_seguimiento?.nombre || '',
+        'MOTIVO':latest?.motivo || '',
+        'COMENTARIO':latest?.comentario || ''
+      };
+    });
+
+    const summary = [
+      ['PLANEACIÓN DE RETROS CPRO','24/11/2026'],
+      ['FECHA DE AVANCE',document.querySelector('#retroPlanDate')?.value || SOURCE_DATE],
+      ['UNIVERSO',35],
+      ['CONTACTABLES',31],
+      ['SIN COBERTURA',4],
+      ['RETROS REGISTRADAS',STORES.filter(s=>retroByDet.has(s.det)).length],
+      ['PENDIENTES',STORES.filter(s=>!retroByDet.has(s.det)).length],
+      ['META ESPERADA AL CORTE',expectedNow()]
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const ws2 = XLSX.utils.aoa_to_sheet(summary);
+    ws['!cols'] = [
+      {wch:18},{wch:14},{wch:10},{wch:28},{wch:12},{wch:10},{wch:16},{wch:12},
+      {wch:18},{wch:22},{wch:15},{wch:15},{wch:20},{wch:20},{wch:24},{wch:35},{wch:55}
+    ];
+    XLSX.utils.book_append_sheet(wb,ws,'PLANEACION');
+    XLSX.utils.book_append_sheet(wb,ws2,'RESUMEN');
+    XLSX.writeFile(wb,`Planeacion_Retros_CPRO_${document.querySelector('#retroPlanDate')?.value || SOURCE_DATE}.xlsx`);
+  }
+
+  function startRetroModule() {
+    injectRetroStyles();
+    injectRetroUI();
+    document.querySelector('#globalAreaSelect')?.addEventListener('change',()=>setTimeout(syncRetroVisibility,300));
+    setInterval(syncRetroVisibility,1200);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startRetroModule);
+  } else {
+    startRetroModule();
+  }
+})();
+</script>
+
 </body>
 </html>
