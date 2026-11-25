@@ -56,7 +56,8 @@
       <button class="tab" data-view="actividad">▶ Nueva actividad</button>
       <button class="tab" data-view="seguimiento">📋 Registrar seguimiento</button>
       <button class="tab" data-view="promotor">👤 Seguimientos por promotor</button>
-      <button class="tab" data-view="estadisticas">📊 Estadísticas</button>
+      <button class="tab" data-view="tiendas-cero" id="zeroStoresTab">🚨 TIENDAS EN 0</button>
+<button class="tab" data-view="estadisticas">📊 Estadísticas</button>
       <button class="tab" data-view="ranking">🏆 Ranking actividades</button>
       <button class="tab" data-view="conectados">🟢 Conectados</button>
       <button class="tab hidden" data-view="informes" id="reportsTab">📄 Informes</button>
@@ -537,7 +538,7 @@
     s.textContent = `
       .cpro-hist-filters{
         display:grid;
-        grid-template-columns:1.15fr 1.15fr 1fr .85fr;
+        grid-template-columns:repeat(3,minmax(0,1fr));
         gap:12px;
         align-items:end;
         margin-bottom:12px
@@ -623,6 +624,9 @@
         </div>
         <div class="window-body">
           <div class="cpro-hist-filters">
+            <label>Día
+              <input id="cproHistDate" type="date">
+            </label>
             <label>Determinante
               <input id="cproHistDet" placeholder="Ej. 1203" autocomplete="off">
             </label>
@@ -656,8 +660,8 @@
           </div>
 
           <div class="cpro-hist-help">
-            Puedes buscar por determinante, CPRO responsable, región o promotor y combinar los filtros.
-            El resultado incluye seguimientos y actividades históricas, incluyendo las personas/promotores seleccionados.
+            Puedes filtrar por día, determinante, CPRO responsable, región o promotor y combinar los filtros.
+            El resultado incluye seguimientos y actividades, con las personas/promotores seleccionados.
           </div>
 
           <div id="cproHistFilterTags"></div>
@@ -678,6 +682,12 @@
       await loadFilterOptions();
       document.querySelector('#cproHistDet')?.focus();
     };
+
+    const histDate = document.querySelector('#cproHistDate');
+    if (histDate && !histDate.value) {
+      const now = new Date();
+      histDate.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    }
 
     document.querySelector('#cproHistSearch').onclick = searchHistory;
     document.querySelector('#cproHistClear').onclick = clearFilters;
@@ -800,16 +810,23 @@
   }
 
   function readFilters() {
+    const date = document.querySelector('#cproHistDate')?.value || '';
     const det = detOf(document.querySelector('#cproHistDet')?.value);
     const analystId = document.querySelector('#cproHistOwner')?.value || '';
     const analystName = document.querySelector('#cproHistOwner')?.selectedOptions?.[0]?.textContent || '';
     const region = document.querySelector('#cproHistRegion')?.value || '';
     const promoter = String(document.querySelector('#cproHistPromoter')?.value || '').trim();
     const kind = document.querySelector('#cproHistKind')?.value || 'ALL';
-    return { det, analystId, analystName, region, promoter, kind };
+    return { date, det, analystId, analystName, region, promoter, kind };
   }
 
   function applyCommonFilters(q, f, dateColumn) {
+    if (f.date) {
+      const start = new Date(`${f.date}T00:00:00`);
+      const next = new Date(start);
+      next.setDate(next.getDate() + 1);
+      q = q.gte(dateColumn, start.toISOString()).lt(dateColumn, next.toISOString());
+    }
     if (f.det) q = q.eq('determinante', f.det);
     if (f.analystId) q = q.eq('analista_id', f.analystId);
     // La región se filtra después de reconstruirla desde tienda/promotor,
@@ -824,8 +841,8 @@
     const exportBtn = document.querySelector('#cproHistExport');
     const tags = document.querySelector('#cproHistFilterTags');
 
-    if (!f.det && !f.analystId && !f.region && !f.promoter) {
-      box.innerHTML = '<div class="empty">Selecciona una determinante, una CPRO, una región o un promotor para buscar.</div>';
+    if (!f.date && !f.det && !f.analystId && !f.region && !f.promoter) {
+      box.innerHTML = '<div class="empty">Selecciona un día, una determinante, una CPRO, una región o un promotor para buscar.</div>';
       head.innerHTML = '';
       tags.innerHTML = '';
       cproHistoryRows = [];
@@ -840,6 +857,7 @@
     cproHistoryRows = [];
 
     const filterTags = [];
+    if (f.date) filterTags.push(`Día: ${f.date}`);
     if (f.det) filterTags.push(`Determinante: ${f.det}`);
     if (f.analystId) filterTags.push(`CPRO: ${f.analystName}`);
     if (f.region) filterTags.push(`Región: ${f.region}`);
@@ -1122,6 +1140,7 @@
   }
 
   function clearFilters() {
+    document.querySelector('#cproHistDate').value = '';
     document.querySelector('#cproHistDet').value = '';
     document.querySelector('#cproHistOwner').value = '';
     document.querySelector('#cproHistRegion').value = '';
@@ -1159,6 +1178,7 @@
 
     const resumen = [
       ['REPORTE','HISTÓRICO GENERAL CPRO'],
+      ['DÍA',f.date || 'TODOS'],
       ['DETERMINANTE',f.det || 'TODAS'],
       ['CPRO',f.analystId ? f.analystName : 'TODAS'],
       ['REGIÓN',f.region || 'TODAS'],
@@ -1181,6 +1201,7 @@
     XLSX.utils.book_append_sheet(wb, ws2, 'RESUMEN');
 
     const bits = ['CPRO'];
+    if (f.date) bits.push(f.date);
     if (f.det) bits.push(f.det);
     if (f.region) bits.push(String(f.region).replace(/[^A-Za-z0-9.-]/g,'_'));
     if (f.analystId) bits.push(String(f.analystName).replace(/[^A-Za-z0-9.-]/g,'_'));
@@ -1212,45 +1233,46 @@
 })();
   </script>
 
+
 <!-- ============================================================
-     CPRO · PLANEACIÓN DE RETROS POR COBERTURA · 24/11/2026
-     Base: análisis de cobertura compartido por Mariela.
+     CPRO · TIENDAS EN 0 · BPI + LLAMADAS
      ============================================================ -->
 <script>
 (() => {
   'use strict';
 
-  const SOURCE_DATE = '2026-11-24';
-  const STORES = [{"owner": "KAREN CPRO", "det": "6293", "socio": "SAMS", "store": "Santa Catarina", "region": "R4.1", "start": "10:00", "end": "20:00", "staff": 6, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "1139", "socio": "WM", "store": "La Huasteca", "region": "R4.1", "start": "10:00", "end": "21:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "2465", "socio": "WM", "store": "Saltillo", "region": "R4.4", "start": "10:00", "end": "21:00", "staff": 4, "priority": "SIN TRÁMITES"}, {"owner": "KAREN CPRO", "det": "5241", "socio": "WM", "store": "San Patricio", "region": "R4.4", "start": "10:00", "end": "20:00", "staff": 2, "priority": "SIN TRÁMITES"}, {"owner": "KAREN CPRO", "det": "110", "socio": "CH", "store": "Nuevo Laredo Hipódromo", "region": "R23", "start": "10:00", "end": "20:00", "staff": 2, "priority": "AP SIN FINALIZAR"}, {"owner": "KAREN CPRO", "det": "4941", "socio": "SAMS", "store": "Reynosa", "region": "R23", "start": "10:00", "end": "20:00", "staff": 3, "priority": "AP SIN FINALIZAR"}, {"owner": "KAREN CPRO", "det": "4978", "socio": "SAMS", "store": "Gómez Morín", "region": "R4.1", "start": "11:00", "end": "20:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "1027", "socio": "WM", "store": "Sendero", "region": "R4.1", "start": "11:00", "end": "20:00", "staff": 2, "priority": "SIN TRÁMITES"}, {"owner": "KAREN CPRO", "det": "1833", "socio": "WM", "store": "La Pastora", "region": "R4.3", "start": "15:00", "end": "21:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "3719", "socio": "WM", "store": "Matamoros", "region": "R23", "start": "15:00", "end": "18:00", "staff": 2, "priority": "SIN TRÁMITES"}, {"owner": "KAREN CPRO", "det": "4138", "socio": "WM", "store": "SC Villa Juárez", "region": "R4.3", "start": "16:00", "end": "22:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "KAREN CPRO", "det": "2179", "socio": "WM", "store": "San Nicolás", "region": "R4.4", "start": null, "end": null, "staff": 0, "priority": "SIN TRÁMITES"}, {"owner": "SONIA", "det": "25", "socio": "CC", "store": "Galerías Zacatecas", "region": "R19", "start": "10:00", "end": "20:00", "staff": 2, "priority": "SIN TRÁMITES"}, {"owner": "SONIA", "det": "6242", "socio": "SAMS", "store": "Carretera 57", "region": "R19", "start": "10:00", "end": "20:00", "staff": 4, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "4936", "socio": "SAMS", "store": "Uruapan", "region": "R20.2", "start": "10:00", "end": "20:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "6482", "socio": "WM", "store": "Glorieta San Luis", "region": "R19", "start": "11:00", "end": "15:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "123", "socio": "CH", "store": "Fresnillo", "region": "R19", "start": "11:00", "end": "17:00", "staff": 1, "priority": "SIN TRÁMITES"}, {"owner": "SONIA", "det": "6248", "socio": "SAMS", "store": "Albino Corzo", "region": "R15", "start": "11:00", "end": "21:00", "staff": 4, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "3127", "socio": "WM", "store": "Libramiento Norte", "region": "R15", "start": "11:00", "end": "21:00", "staff": 2, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "6294", "socio": "SAMS", "store": "Fresnillo", "region": "R19", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "SONIA", "det": "5171", "socio": "WM", "store": "CD Valles Centro", "region": "R19", "start": "11:00", "end": "20:00", "staff": 1, "priority": "SIN TRÁMITES"}, {"owner": "SONIA", "det": "5296", "socio": "WM", "store": "San Remo", "region": "R19", "start": null, "end": null, "staff": 0, "priority": "SIN TRÁMITES"}, {"owner": "CINTHIA", "det": "6534", "socio": "SAMS", "store": "Pachuca", "region": "R11", "start": "10:00", "end": "20:00", "staff": 2, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "2349", "socio": "WM", "store": "Acapulco", "region": "R13.2", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "5239", "socio": "WM", "store": "Iguala de Independencia", "region": "R13.2", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "6258", "socio": "SAMS", "store": "Periférico ITESO", "region": "R20.1", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "6226", "socio": "SAMS", "store": "La Piedad", "region": "R20.1", "start": "11:00", "end": "20:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "3588", "socio": "WM", "store": "Paraíso Cuernavaca", "region": "R13.1", "start": "12:00", "end": "19:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "CINTHIA", "det": "2446", "socio": "WM", "store": "Averanda", "region": "R13.1", "start": null, "end": null, "staff": 0, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "1205", "socio": "WM", "store": "Alijadores", "region": "R3", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "4819", "socio": "WM", "store": "Fuentes Piedras Negras", "region": "R21.1", "start": "11:00", "end": "20:00", "staff": 2, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "6881", "socio": "WM", "store": "Boulevard República", "region": "R21.1", "start": "11:00", "end": "20:00", "staff": 2, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "1623", "socio": "WM", "store": "CD Cuauhtémoc", "region": "R22", "start": "11:00", "end": "20:00", "staff": 1, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "5728", "socio": "WM", "store": "Norte 2000", "region": "R22", "start": "11:00", "end": "20:00", "staff": 3, "priority": "TRÁMITES SIN AP"}, {"owner": "LUCY", "det": "2304", "socio": "WM", "store": "Mexicali", "region": "R1", "start": null, "end": null, "staff": 0, "priority": "SIN TRÁMITES"}];
+  const ZERO_ACTIVITY_NAME = 'TIENDAS EN 0';
+  const ZERO_MARKER_PREFIX = '[TIENDAS_EN_0_FECHA:';
+  const ZERO_CACHE_PREFIX = 'better_cpro_tiendas0_';
 
-  const BLOCKS = [
-    {key:'10:00', label:'A partir de las 10:00', contact:'10:15', targetTime:'11:00', expected:10},
-    {key:'11:00', label:'A partir de las 11:00', contact:'11:15', targetTime:'12:00', expected:27},
-    {key:'12:00', label:'A partir de las 12:00', contact:'12:15', targetTime:'13:00', expected:28},
-    {key:'15:00', label:'A partir de las 15:00', contact:'15:15', targetTime:'16:00', expected:30},
-    {key:'16:00', label:'A partir de las 16:00', contact:'16:15', targetTime:'17:00', expected:31},
-    {key:'NONE', label:'Sin cobertura', contact:'TL / LS / RRHH', targetTime:'HOY', expected:35}
-  ];
+  let zeroBpiRows = [];
+  let zeroBpiMeta = null;
+  let zeroStores = [];
+  let zeroCallsByDet = new Map();
+  let zeroAreaId = null;
 
-  let retroRows = [];
-  let retroByDet = new Map();
-  let cproAreaId = null;
-
-  const escRetro = v => String(v ?? '').replace(/[&<>"']/g, c => ({
+  const zEsc = v => String(v ?? '').replace(/[&<>"']/g, c => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[c]));
 
-  function areaIsCPRO() {
-    try {
-      if (typeof activeAreaKey !== 'undefined' && activeAreaKey) {
-        return String(activeAreaKey).toUpperCase() === 'CPRO';
-      }
-    } catch (_) {}
-    const s = document.querySelector('#globalAreaSelect');
-    return (s?.options?.[s.selectedIndex]?.textContent || '').toUpperCase().includes('CPRO');
-  }
+  const zNorm = v => String(v ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .trim().toUpperCase().replace(/\s+/g,' ');
 
-  function fmtRetroDate(v) {
+  const zDet = v => {
+    const s = String(v ?? '').trim();
+    const m = s.match(/\d{1,6}/);
+    if (!m) return '';
+    const digits = m[0].replace(/^0+(?=\d)/,'');
+    return digits || '0';
+  };
+
+  const zToday = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+
+  const zFmt = v => {
     if (!v) return '—';
     const d = new Date(v);
     if (Number.isNaN(d.getTime())) return '—';
@@ -1258,502 +1280,780 @@
       day:'2-digit',month:'2-digit',year:'numeric',
       hour:'2-digit',minute:'2-digit'
     });
+  };
+
+  async function zGetAreaId() {
+    if (zeroAreaId) return zeroAreaId;
+    const {data,error} = await sb.from('areas')
+      .select('id').eq('clave','CPRO').limit(1).maybeSingle();
+    if (error) throw error;
+    zeroAreaId = data?.id || null;
+    return zeroAreaId;
   }
 
-  function minOf(hhmm) {
-    if (!hhmm) return null;
-    const [h,m] = hhmm.split(':').map(Number);
-    return h * 60 + m;
+  async function zAreaIsCPRO() {
+    try {
+      if (typeof activeAreaKey !== 'undefined' && String(activeAreaKey || '').toUpperCase() === 'CPRO') return true;
+    } catch (_) {}
+
+    const areaId = await zGetAreaId();
+
+    try {
+      if (typeof activeAreaId !== 'undefined' && activeAreaId && areaId && String(activeAreaId) === String(areaId)) return true;
+    } catch (_) {}
+
+    try {
+      if (typeof currentAnalyst !== 'undefined' && currentAnalyst?.area_id && areaId &&
+          String(currentAnalyst.area_id) === String(areaId)) return true;
+    } catch (_) {}
+
+    const s = document.querySelector('#globalAreaSelect');
+    return (s?.options?.[s.selectedIndex]?.textContent || '').toUpperCase().includes('CPRO');
   }
 
-  function add15(hhmm) {
-    if (!hhmm) return '—';
-    const n = minOf(hhmm) + 15;
-    const h = String(Math.floor(n / 60)).padStart(2,'0');
-    const m = String(n % 60).padStart(2,'0');
-    return `${h}:${m}`;
-  }
-
-  function expectedNow(dateStr) {
-    const selected = document.querySelector('#retroPlanDate')?.value || SOURCE_DATE;
-    const today = new Date();
-    const todayStr = [
-      today.getFullYear(),
-      String(today.getMonth()+1).padStart(2,'0'),
-      String(today.getDate()).padStart(2,'0')
-    ].join('-');
-
-    if (selected < todayStr) return 35;
-    if (selected > todayStr) return 0;
-
-    const now = today.getHours()*60 + today.getMinutes();
-    if (now >= minOf('17:00')) return 31;
-    if (now >= minOf('16:00')) return 30;
-    if (now >= minOf('13:00')) return 28;
-    if (now >= minOf('12:00')) return 27;
-    if (now >= minOf('11:00')) return 10;
-    return 0;
-  }
-
-  function contactState(s) {
-    if (!s.start) return {label:'SIN COBERTURA', cls:'no-cover'};
-    const now = new Date();
-    const n = now.getHours()*60 + now.getMinutes();
-    const start = minOf(s.start) + 15;
-    const end = minOf(s.end);
-
-    if (n < start) return {label:`DESDE ${add15(s.start)}`, cls:'waiting'};
-    if (n > end) return {label:'COBERTURA FINALIZADA', cls:'closed'};
-    if (end - n <= 90) return {label:'PRIORIDAD · CIERRA PRONTO', cls:'urgent'};
-    return {label:'CONTACTABLE AHORA', cls:'available'};
-  }
-
-  function injectRetroStyles() {
-    if (document.querySelector('#retroPlanStyles')) return;
-    const st = document.createElement('style');
-    st.id = 'retroPlanStyles';
-    st.textContent = `
-      .retro-plan-shell{display:grid;gap:16px}
-      .retro-plan-toolbar{
-        display:grid;grid-template-columns:170px 1fr 1fr auto auto;
-        gap:10px;align-items:end
+  function zStyles() {
+    if (document.querySelector('#zeroStoresStyles')) return;
+    const s = document.createElement('style');
+    s.id = 'zeroStoresStyles';
+    s.textContent = `
+      .zero-toolbar{
+        display:grid;grid-template-columns:180px minmax(260px,1fr) auto auto;
+        gap:10px;align-items:end;margin-bottom:12px
       }
-      .retro-plan-toolbar label{margin:0}
-      .retro-plan-kpis{
-        display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px
+      .zero-toolbar-2{
+        display:grid;grid-template-columns:1fr 220px 220px;
+        gap:10px;align-items:end;margin-bottom:15px
       }
-      .retro-kpi{
-        border:1px solid rgba(13,72,64,.22);
-        background:rgba(255,255,255,.52);padding:14px 15px
+      .zero-file-note{font-size:11px;opacity:.68;margin-top:5px}
+      .zero-kpis{
+        display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+        gap:10px;margin:12px 0 16px
       }
-      .retro-kpi strong{display:block;font-size:26px;line-height:1}
-      .retro-kpi span{
-        display:block;margin-top:5px;font-size:10px;font-weight:900;
-        letter-spacing:.05em;text-transform:uppercase;opacity:.68
+      .zero-kpi{
+        border:1px solid rgba(15,75,67,.20);
+        background:rgba(255,255,255,.52);padding:14px
       }
-      .retro-progress{
-        height:13px;border:1px solid rgba(13,72,64,.22);
-        background:rgba(255,255,255,.55);overflow:hidden
+      .zero-kpi strong{display:block;font-size:25px;line-height:1}
+      .zero-kpi span{
+        display:block;margin-top:6px;font-size:10px;font-weight:900;
+        letter-spacing:.04em;text-transform:uppercase;opacity:.7
       }
-      .retro-progress > span{display:block;height:100%;background:#0c5148}
-      .retro-plan-meta{
-        display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
-        font-size:12px
+      .zero-info{
+        padding:11px 13px;border-left:4px solid #0c5148;
+        background:rgba(12,81,72,.05);font-size:12px;line-height:1.5;
+        margin-bottom:14px
       }
-      .retro-block{
-        border:1px solid rgba(13,72,64,.23);
-        background:rgba(255,255,255,.45);margin-top:12px
-      }
-      .retro-block-head{
-        display:flex;align-items:center;justify-content:space-between;gap:12px;
-        padding:11px 13px;border-bottom:1px solid rgba(13,72,64,.18);
-        background:rgba(13,72,64,.045)
-      }
-      .retro-block-head b{font-size:14px}
-      .retro-block-head small{opacity:.72}
-      .retro-table-wrap{overflow:auto}
-      .retro-table{width:100%;border-collapse:collapse;min-width:1000px}
-      .retro-table th,.retro-table td{
-        border-bottom:1px solid rgba(13,72,64,.12);
-        padding:9px 10px;text-align:left;vertical-align:top;font-size:12px
-      }
-      .retro-table th{
-        font-size:10px;letter-spacing:.04em;text-transform:uppercase;
+      .zero-table-wrap{
+        overflow:auto;border:1px solid rgba(15,75,67,.20);
         background:rgba(255,255,255,.45)
       }
-      .retro-status{
+      .zero-table{width:100%;border-collapse:collapse;min-width:1200px}
+      .zero-table th,.zero-table td{
+        padding:9px 10px;border-bottom:1px solid rgba(15,75,67,.12);
+        text-align:left;vertical-align:top;font-size:12px
+      }
+      .zero-table th{
+        font-size:10px;text-transform:uppercase;letter-spacing:.04em;
+        background:rgba(15,75,67,.045)
+      }
+      .zero-badge{
         display:inline-block;padding:4px 7px;border:1px solid;
-        font-size:9px;font-weight:900;letter-spacing:.04em
+        font-size:9px;font-weight:900;white-space:nowrap
       }
-      .retro-status.done{border-color:#347861;background:#eaf5f0;color:#1e5c49}
-      .retro-status.pending{border-color:#9d6f32;background:#fff7e7;color:#78521f}
-      .retro-contact{font-weight:850}
-      .retro-contact.available{color:#1d654f}
-      .retro-contact.urgent{color:#a33838}
-      .retro-contact.waiting{color:#806321}
-      .retro-contact.no-cover{color:#a33838}
-      .retro-contact.closed{color:#777}
-      .retro-priority{
-        display:inline-block;padding:3px 6px;border:1px solid rgba(13,72,64,.2);
-        font-size:9px;font-weight:850
+      .zero-badge.done{color:#1b6049;border-color:#4e8d76;background:#edf7f2}
+      .zero-badge.live{color:#7a5d1b;border-color:#aa8c43;background:#fff9e7}
+      .zero-badge.pending{color:#9b3838;border-color:#ba6262;background:#fff0f0}
+      .zero-call-summary{max-width:330px;white-space:pre-wrap}
+      .zero-small{font-size:10px;opacity:.68}
+      .zero-action{padding:6px 8px;font-size:10px;white-space:nowrap}
+      @media(max-width:950px){
+        .zero-toolbar,.zero-toolbar-2{grid-template-columns:1fr 1fr}
+        .zero-kpis{grid-template-columns:repeat(2,1fr)}
       }
-      .retro-action-btn{padding:6px 8px;font-size:10px;white-space:nowrap}
-      .retro-alert{
-        padding:12px 14px;border-left:4px solid #9b3d3d;
-        background:rgba(155,61,61,.055);font-size:12px;line-height:1.45
-      }
-      .retro-goal{
-        padding:12px 14px;border-left:4px solid #0c5148;
-        background:rgba(12,81,72,.055);font-size:12px;line-height:1.45
-      }
-      @media(max-width:1050px){
-        .retro-plan-toolbar{grid-template-columns:1fr 1fr}
-        .retro-plan-kpis{grid-template-columns:repeat(2,1fr)}
-      }
-      @media(max-width:650px){
-        .retro-plan-toolbar,.retro-plan-kpis{grid-template-columns:1fr}
+      @media(max-width:620px){
+        .zero-toolbar,.zero-toolbar-2,.zero-kpis{grid-template-columns:1fr}
       }
     `;
-    document.head.appendChild(st);
+    document.head.appendChild(s);
   }
 
-  function injectRetroUI() {
-    if (document.querySelector('#retroPlanTab')) return;
-
-    const storeTab = document.querySelector('#storeFollowupsTab');
-    const promoterTab = document.querySelector('.tab[data-view="promotor"]');
-    const anchor = storeTab || promoterTab;
+  function zInjectUI() {
+    const anchor = document.querySelector('#storeFollowupsTab') ||
+                   document.querySelector('.tab[data-view="promotor"]');
     const main = document.querySelector('main');
     if (!anchor || !main) return;
 
-    const tab = document.createElement('button');
-    tab.id = 'retroPlanTab';
-    tab.className = 'tab hidden';
-    tab.dataset.view = 'planeacion-retros';
-    tab.textContent = '📞 Planeación de retros';
-    anchor.insertAdjacentElement('afterend', tab);
+    let tab = document.querySelector('#zeroStoresTab');
+    if (!tab) {
+      tab = document.createElement('button');
+      tab.id = 'zeroStoresTab';
+      tab.className = 'tab hidden';
+      tab.dataset.view = 'tiendas-cero';
+      tab.textContent = '🚨 TIENDAS EN 0';
+      anchor.insertAdjacentElement('afterend', tab);
+    }
 
-    const view = document.createElement('section');
-    view.className = 'view';
-    view.id = 'view-planeacion-retros';
-    view.innerHTML = `
+    let view = document.querySelector('#view-tiendas-cero');
+    if (!view) {
+      view = document.createElement('section');
+      view.id = 'view-tiendas-cero';
+      view.className = 'view';
+      view.innerHTML = `
       <div class="window large">
         <div class="titlebar">
-          <span>📞 PLANEACIÓN DE RETROS · CPRO</span><span>— □ ×</span>
+          <span>🚨 TIENDAS EN 0 · CPRO</span><span>— □ ×</span>
         </div>
-        <div class="window-body retro-plan-shell">
-          <div class="retro-plan-toolbar">
-            <label>Fecha de seguimiento
-              <input id="retroPlanDate" type="date" value="${SOURCE_DATE}">
+        <div class="window-body">
+          <div class="zero-toolbar">
+            <label>Día de resultados BPI
+              <input id="zeroDate" type="date">
             </label>
-            <label>CPRO responsable
-              <select id="retroPlanOwner"><option value="">Todas</option></select>
+            <label>Cargar BPI
+              <input id="zeroBpiFile" type="file" accept=".xlsx,.xls,.xlsm,.csv">
+              <div class="zero-file-note" id="zeroBpiMeta">Carga la BPI mensual o diaria.</div>
             </label>
-            <label>Bloque de cobertura
-              <select id="retroPlanBlock">
-                <option value="">Todos los horarios</option>
-                <option value="10:00">10:00</option>
-                <option value="11:00">11:00</option>
-                <option value="12:00">12:00</option>
-                <option value="15:00">15:00</option>
-                <option value="16:00">16:00</option>
-                <option value="NONE">Sin cobertura</option>
-              </select>
-            </label>
-            <button class="primary" id="retroPlanRefresh">↻ ACTUALIZAR AVANCE</button>
-            <button id="retroPlanExport">📥 EXCEL</button>
+            <button class="primary" id="zeroProcessBpi">📊 PROCESAR BPI</button>
+            <button id="zeroExport" disabled>📥 EXCEL</button>
           </div>
 
-          <div class="retro-plan-toolbar" style="grid-template-columns:1fr 220px 220px">
-            <label>Buscar tienda / determinante
-              <input id="retroPlanSearch" placeholder="Ej. 6293 o Santa Catarina">
+          <div class="zero-toolbar-2">
+            <label>Buscar determinante / tienda
+              <input id="zeroSearch" placeholder="Ej. 6293 o Santa Catarina">
             </label>
-            <label>Estado
-              <select id="retroPlanStatus">
+            <label>Estado de llamada
+              <select id="zeroCallStatus">
                 <option value="">Todas</option>
                 <option value="PENDING">Pendientes</option>
-                <option value="DONE">Con retro</option>
+                <option value="LIVE">En curso</option>
+                <option value="DONE">Llamada realizada</option>
               </select>
             </label>
             <label>Región
-              <select id="retroPlanRegion"><option value="">Todas</option></select>
+              <select id="zeroRegion"><option value="">Todas</option></select>
             </label>
           </div>
 
-          <div class="retro-plan-kpis" id="retroPlanKpis"></div>
-          <div>
-            <div class="retro-plan-meta" id="retroPlanProgressText"></div>
-            <div class="retro-progress"><span id="retroPlanProgressBar" style="width:0%"></span></div>
+          <div class="zero-kpis" id="zeroKpis"></div>
+
+          <div class="zero-info">
+            <b>Cómo funciona:</b> la BPI define las tiendas con <b>0 finalizadas</b> para el día seleccionado.
+            Si la base de tiendas permite identificar estatus <b>OPERANDO</b>, ese será el universo.
+            Cuando CPRO registre y finalice la actividad <b>TIENDAS EN 0</b> para esa determinante,
+            se marcará como <b>LLAMADA REALIZADA</b> y aquí aparecerán responsable, fecha y resumen/cierre.
           </div>
 
-          <div class="retro-goal">
-            <b>Meta operativa:</b> contactar cada tienda 15 minutos después del inicio de cobertura.
-            Los cortes acumulados esperados son 10, 27, 28, 30 y 31 retros contactables.
-            Las 4 tiendas sin cobertura deben escalarse con TL / LS / RRHH.
-          </div>
-
-          <div id="retroPlanResults"></div>
-
-          <div class="retro-alert">
-            <b>Base de cobertura:</b> 24/11/2026. Esta pestaña usa los horarios del análisis de cobertura
-            como planeación operativa; la asistencia real puede variar. El avance se actualiza leyendo
-            los seguimientos registrados en CPRO para la fecha seleccionada.
+          <div id="zeroResults">
+            <div class="empty">Selecciona el día y carga una BPI para calcular las tiendas en 0.</div>
           </div>
         </div>
       </div>`;
 
-    main.appendChild(view);
+      main.appendChild(view);
+    }
 
-    const owners = [...new Set(STORES.map(x => x.owner))].sort((a,b)=>a.localeCompare(b,'es'));
-    document.querySelector('#retroPlanOwner').innerHTML =
-      '<option value="">Todas</option>' +
-      owners.map(x=>`<option value="${escRetro(x)}">${escRetro(x)}</option>`).join('');
-
-    const regions = [...new Set(STORES.map(x => x.region))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
-    document.querySelector('#retroPlanRegion').innerHTML =
-      '<option value="">Todas</option>' +
-      regions.map(x=>`<option value="${escRetro(x)}">${escRetro(x)}</option>`).join('');
+    const date = document.querySelector('#zeroDate');
+    if (date && !date.value) date.value = zToday();
 
     tab.onclick = async () => {
       document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
       tab.classList.add('active');
       document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
       view.classList.add('active');
-      await refreshRetroPlan();
+      zLoadCache();
+      await zRefreshCalls();
     };
 
-    ['retroPlanOwner','retroPlanBlock','retroPlanStatus','retroPlanRegion']
-      .forEach(id => document.querySelector('#'+id)?.addEventListener('change', renderRetroPlan));
+    document.querySelector('#zeroProcessBpi').onclick = zProcessBpi;
+    document.querySelector('#zeroExport').onclick = zExport;
+    document.querySelector('#zeroSearch').addEventListener('input', zRender);
+    document.querySelector('#zeroCallStatus').addEventListener('change', zRender);
+    document.querySelector('#zeroRegion').addEventListener('change', zRender);
+    document.querySelector('#zeroDate').addEventListener('change', async () => {
+      zeroStores = [];
+      zeroCallsByDet = new Map();
+      zLoadCache();
+      await zRefreshCalls();
+    });
 
-    document.querySelector('#retroPlanSearch')?.addEventListener('input', renderRetroPlan);
-    document.querySelector('#retroPlanDate')?.addEventListener('change', refreshRetroPlan);
-    document.querySelector('#retroPlanRefresh').onclick = refreshRetroPlan;
-    document.querySelector('#retroPlanExport').onclick = exportRetroPlan;
-
-    syncRetroVisibility();
+    zSyncVisibility();
   }
 
-  function syncRetroVisibility() {
-    const tab = document.querySelector('#retroPlanTab');
-    const view = document.querySelector('#view-planeacion-retros');
+  async function zSyncVisibility() {
+    const tab = document.querySelector('#zeroStoresTab');
+    const view = document.querySelector('#view-tiendas-cero');
     if (!tab) return;
-    const ok = areaIsCPRO();
+    const ok = await zAreaIsCPRO();
     tab.classList.toggle('hidden', !ok);
     if (!ok && view?.classList.contains('active')) {
       document.querySelector('.tab[data-view="inicio"]')?.click();
     }
   }
 
-  async function getCPROArea() {
-    if (cproAreaId) return cproAreaId;
-    const {data,error} = await sb.from('areas').select('id').eq('clave','CPRO').limit(1).maybeSingle();
-    if (error) throw error;
-    cproAreaId = data?.id || null;
-    return cproAreaId;
+  function zDateKey(v) {
+    if (v === null || v === undefined || v === '') return '';
+
+    if (v instanceof Date && !Number.isNaN(v.getTime())) {
+      return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+    }
+
+    if (typeof v === 'number' && typeof XLSX !== 'undefined' && XLSX.SSF?.parse_date_code) {
+      const p = XLSX.SSF.parse_date_code(v);
+      if (p) return `${p.y}-${String(p.m).padStart(2,'0')}-${String(p.d).padStart(2,'0')}`;
+    }
+
+    const s = String(v).trim();
+    let m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+
+    m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})/);
+    if (m) {
+      let y = m[3];
+      if (y.length === 2) y = '20' + y;
+      return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    }
+
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    return '';
   }
 
-  async function refreshRetroPlan() {
-    const btn = document.querySelector('#retroPlanRefresh');
-    if (btn) { btn.disabled = true; btn.textContent = 'ACTUALIZANDO…'; }
+  function zFindHeader(headers, exacts, contains = []) {
+    const normalized = headers.map(h => zNorm(h));
+    for (const e of exacts) {
+      const ix = normalized.indexOf(zNorm(e));
+      if (ix >= 0) return headers[ix];
+    }
+    for (let i=0;i<normalized.length;i++) {
+      if (contains.some(c => normalized[i].includes(zNorm(c)))) return headers[i];
+    }
+    return null;
+  }
+
+  function zFindBestSheet(wb) {
+    let best = null;
+
+    for (const name of wb.SheetNames) {
+      const ws = wb.Sheets[name];
+      const aoa = XLSX.utils.sheet_to_json(ws, {header:1,defval:'',raw:true});
+      const max = Math.min(25, aoa.length);
+
+      for (let r=0;r<max;r++) {
+        const row = aoa[r] || [];
+        const hs = row.map(x => zNorm(x));
+        let score = 0;
+        if (hs.some(x => x === 'DETERMINANTE' || x.includes('DETERMINANTE'))) score += 5;
+        if (hs.some(x => x.includes('FECHA'))) score += 4;
+        if (hs.some(x => x.includes('ESTATUS PROCESO') || x.includes('FINALIZAD'))) score += 4;
+        if (hs.some(x => x.includes('APROB'))) score += 1;
+
+        if (!best || score > best.score) best = {name,row:r,score};
+      }
+    }
+    return best;
+  }
+
+  async function zProcessBpi() {
+    const file = document.querySelector('#zeroBpiFile')?.files?.[0];
+    const selectedDate = document.querySelector('#zeroDate')?.value;
+
+    if (!selectedDate) return alert('Selecciona el día de resultados.');
+    if (!file) return alert('Selecciona el archivo BPI.');
+    if (typeof XLSX === 'undefined') return alert('No está disponible el lector de Excel. Recarga con Ctrl + F5.');
+
+    const btn = document.querySelector('#zeroProcessBpi');
+    btn.disabled = true;
+    btn.textContent = 'PROCESANDO…';
 
     try {
-      const dateStr = document.querySelector('#retroPlanDate')?.value || SOURCE_DATE;
-      const start = new Date(`${dateStr}T00:00:00`);
-      const next = new Date(start);
-      next.setDate(next.getDate()+1);
-      const areaId = await getCPROArea();
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, {type:'array',cellDates:true});
+      const best = zFindBestSheet(wb);
 
-      let q = sb.from('seguimientos')
-        .select('id,fecha,determinante,region,motivo,comentario,analista_id,analistas(nombre),tipos_seguimiento(nombre)')
-        .gte('fecha', start.toISOString())
-        .lt('fecha', next.toISOString())
-        .in('determinante', STORES.map(x=>x.det))
-        .order('fecha',{ascending:false});
+      if (!best || best.score < 5) {
+        throw new Error('No pude identificar la hoja/encabezados de la BPI.');
+      }
 
-      if (areaId) q = q.eq('area_id', areaId);
+      const ws = wb.Sheets[best.name];
+      zeroBpiRows = XLSX.utils.sheet_to_json(ws, {
+        range:best.row,
+        defval:'',
+        raw:true
+      });
+
+      if (!zeroBpiRows.length) throw new Error('La hoja BPI está vacía.');
+
+      const headers = Object.keys(zeroBpiRows[0] || {});
+      const detKey = zFindHeader(headers,
+        ['DETERMINANTE','DET','DETERMINANTE TIENDA'],
+        ['DETERMINANTE']
+      );
+      const dateKey = zFindHeader(headers,
+        ['FECHA VENTA','FECHA DE VENTA','FECHA','FECHA TRAMITE','FECHA DE TRAMITE','DIA','DÍA'],
+        ['FECHA']
+      );
+      const processKey = zFindHeader(headers,
+        ['ESTATUS PROCESO','ESTATUS DE PROCESO','PROCESO'],
+        ['ESTATUS PROCESO']
+      );
+      const finalCountKey = zFindHeader(headers,
+        ['FINALIZADAS','AF','APROBADAS FINALIZADAS'],
+        ['FINALIZAD']
+      );
+      const approvalKey = zFindHeader(headers,
+        ['ESTATUS','ESTATUS SOLICITUD','ESTATUS DE SOLICITUD','RESULTADO'],
+        ['APROB']
+      );
+
+      if (!detKey) throw new Error('No encontré la columna DETERMINANTE.');
+      if (!processKey && !finalCountKey) {
+        throw new Error('No encontré ESTATUS PROCESO ni una columna FINALIZADAS/AF. No haré el cálculo para evitar falsos ceros.');
+      }
+
+      const allAgg = new Map();
+      const dayAgg = new Map();
+
+      for (const row of zeroBpiRows) {
+        const det = zDet(row[detKey]);
+        if (!det) continue;
+
+        if (!allAgg.has(det)) allAgg.set(det, {det,rows:0});
+        allAgg.get(det).rows++;
+
+        const rowDate = dateKey ? zDateKey(row[dateKey]) : selectedDate;
+        if (dateKey && rowDate !== selectedDate) continue;
+
+        if (!dayAgg.has(det)) dayAgg.set(det, {
+          det,tramites:0,aprobadas:0,finalizadas:0
+        });
+        const a = dayAgg.get(det);
+        a.tramites++;
+
+        if (approvalKey && zNorm(row[approvalKey]).includes('APROBAD')) a.aprobadas++;
+
+        if (finalCountKey) {
+          const n = Number(String(row[finalCountKey]).replace(',','.'));
+          if (Number.isFinite(n)) a.finalizadas += n;
+          else if (zNorm(row[finalCountKey]).includes('FINALIZAD')) a.finalizadas++;
+        } else if (processKey && zNorm(row[processKey]).includes('FINALIZAD')) {
+          a.finalizadas++;
+        }
+      }
+
+      // Load store universe from Supabase/global store catalog.
+      let catalog = [];
+      try {
+        if (typeof stores !== 'undefined' && Array.isArray(stores) && stores.length) {
+          catalog = stores.slice();
+        }
+      } catch (_) {}
+
+      if (!catalog.length) {
+        const {data,error} = await sb.from('tiendas').select('*').range(0,4999);
+        if (error) throw error;
+        catalog = data || [];
+      }
+
+      const nonIkea = catalog.filter(s => zNorm(s?.socio) !== 'IKEA');
+
+      const statusKeys = ['estatus','status','estatus_operacion','estado_operacion','operando','activo'];
+      let hasOperatingStatus = false;
+
+      for (const s of nonIkea) {
+        for (const k of statusKeys) {
+          if (Object.prototype.hasOwnProperty.call(s || {}, k)) {
+            const val = zNorm(s[k]);
+            if (val === 'OPERANDO') hasOperatingStatus = true;
+          }
+        }
+      }
+
+      let universe;
+      if (hasOperatingStatus) {
+        universe = nonIkea.filter(s =>
+          statusKeys.some(k => zNorm(s?.[k]) === 'OPERANDO')
+        );
+      } else {
+        // Fallback: determinants present somewhere in the uploaded BPI.
+        universe = nonIkea.filter(s => allAgg.has(zDet(s?.determinante)));
+      }
+
+      zeroStores = universe.map(s => {
+        const det = zDet(s?.determinante);
+        const a = dayAgg.get(det) || {tramites:0,aprobadas:0,finalizadas:0};
+        return {
+          det,
+          tienda:String(s?.nombre_tienda || s?.tienda || '').trim(),
+          region:String(s?.region || '').trim(),
+          socio:String(s?.socio || '').trim(),
+          tramites:Number(a.tramites || 0),
+          aprobadas:Number(a.aprobadas || 0),
+          finalizadas:Number(a.finalizadas || 0)
+        };
+      }).filter(x => x.det && x.finalizadas === 0);
+
+      zeroBpiMeta = {
+        file:file.name,
+        sheet:best.name,
+        date:selectedDate,
+        rows:zeroBpiRows.length,
+        dateKey:dateKey || '',
+        detKey,
+        processKey:processKey || finalCountKey || '',
+        universe:hasOperatingStatus ? 'TIENDAS OPERANDO' : 'DETERMINANTES PRESENTES EN BPI'
+      };
+
+      try {
+        localStorage.setItem(ZERO_CACHE_PREFIX + selectedDate, JSON.stringify({
+          meta:zeroBpiMeta,
+          zeroStores
+        }));
+      } catch (_) {}
+
+      document.querySelector('#zeroBpiMeta').textContent =
+        `${file.name} · ${best.name} · ${zeroBpiRows.length} filas · Universo: ${zeroBpiMeta.universe}`;
+
+      zFillRegions();
+      await zRefreshCalls();
+      document.querySelector('#zeroExport').disabled = !zeroStores.length;
+    } catch (e) {
+      console.error(e);
+      alert('No pude procesar la BPI: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📊 PROCESAR BPI';
+    }
+  }
+
+  function zLoadCache() {
+    const date = document.querySelector('#zeroDate')?.value;
+    if (!date) return;
+    try {
+      const raw = localStorage.getItem(ZERO_CACHE_PREFIX + date);
+      if (!raw) {
+        if (!zeroStores.length) {
+          document.querySelector('#zeroBpiMeta').textContent = 'Carga la BPI mensual o diaria.';
+          document.querySelector('#zeroResults').innerHTML =
+            '<div class="empty">No hay BPI procesada para este día.</div>';
+          document.querySelector('#zeroExport').disabled = true;
+        }
+        return;
+      }
+
+      const obj = JSON.parse(raw);
+      zeroStores = Array.isArray(obj.zeroStores) ? obj.zeroStores : [];
+      zeroBpiMeta = obj.meta || null;
+
+      document.querySelector('#zeroBpiMeta').textContent = zeroBpiMeta
+        ? `${zeroBpiMeta.file} · ${zeroBpiMeta.sheet} · cache guardado · Universo: ${zeroBpiMeta.universe || 'BPI'}`
+        : 'BPI recuperada del navegador.';
+
+      zFillRegions();
+      document.querySelector('#zeroExport').disabled = !zeroStores.length;
+      zRender();
+    } catch (_) {}
+  }
+
+  function zFillRegions() {
+    const sel = document.querySelector('#zeroRegion');
+    if (!sel) return;
+    const current = sel.value;
+    const regions = [...new Set(zeroStores.map(x => x.region).filter(Boolean))]
+      .sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+    sel.innerHTML = '<option value="">Todas</option>' +
+      regions.map(r=>`<option value="${zEsc(r)}">${zEsc(r)}</option>`).join('');
+    if ([...sel.options].some(o=>o.value===current)) sel.value=current;
+  }
+
+  function zMarker(date) {
+    return `${ZERO_MARKER_PREFIX}${date}]`;
+  }
+
+  function zActivityMatchesDate(a, selectedDate) {
+    const combined = `${a.notas || ''} ${a.cierre || ''}`;
+    if (combined.includes(zMarker(selectedDate))) return true;
+
+    // Fallback for manually created activities without marker:
+    // accept the BPI day or the following calendar day.
+    const actDate = zDateKey(a.inicio);
+    if (actDate === selectedDate) return true;
+    const d = new Date(`${selectedDate}T00:00:00`);
+    d.setDate(d.getDate()+1);
+    const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return actDate === next;
+  }
+
+  async function zRefreshCalls() {
+    if (!zeroStores.length) {
+      zRender();
+      return;
+    }
+
+    const date = document.querySelector('#zeroDate')?.value;
+    if (!date) return;
+
+    try {
+      const areaId = await zGetAreaId();
+      const start = new Date(`${date}T00:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate()+7);
+
+      let q = sb.from('actividades').select(`
+        id,inicio,fin,estatus,determinante,notas,cierre,analista_id,area_id,
+        analistas!actividades_analista_id_fkey(nombre),
+        tipos_actividad(nombre)
+      `)
+      .gte('inicio', start.toISOString())
+      .lt('inicio', end.toISOString())
+      .in('determinante', zeroStores.map(x=>x.det))
+      .order('inicio',{ascending:false});
+
+      if (areaId) q = q.eq('area_id',areaId);
 
       const {data,error} = await q;
       if (error) throw error;
 
-      retroRows = data || [];
-      retroByDet = new Map();
-      for (const r of retroRows) {
-        const det = String(r.determinante || '').trim();
-        if (!det) continue;
-        if (!retroByDet.has(det)) retroByDet.set(det, []);
-        retroByDet.get(det).push(r);
+      zeroCallsByDet = new Map();
+
+      for (const a of data || []) {
+        if (zNorm(a.tipos_actividad?.nombre || a.actividad_manual) !== ZERO_ACTIVITY_NAME) continue;
+        if (!zActivityMatchesDate(a,date)) continue;
+
+        const det = zDet(a.determinante);
+        if (!zeroCallsByDet.has(det)) zeroCallsByDet.set(det,[]);
+        zeroCallsByDet.get(det).push(a);
       }
     } catch (e) {
-      console.warn('Planeación de retros:', e);
-      try { if (typeof toast === 'function') toast('No pude leer las retros: '+e.message); } catch (_) {}
-      retroRows = [];
-      retroByDet = new Map();
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '↻ ACTUALIZAR AVANCE'; }
-      renderRetroPlan();
+      console.warn('TIENDAS EN 0 · llamadas:',e);
     }
+
+    zRender();
   }
 
-  function filteredStores() {
-    const owner = document.querySelector('#retroPlanOwner')?.value || '';
-    const block = document.querySelector('#retroPlanBlock')?.value || '';
-    const status = document.querySelector('#retroPlanStatus')?.value || '';
-    const region = document.querySelector('#retroPlanRegion')?.value || '';
-    const search = String(document.querySelector('#retroPlanSearch')?.value || '').trim().toLocaleLowerCase('es');
+  function zLatestCall(det) {
+    const arr = zeroCallsByDet.get(det) || [];
+    if (!arr.length) return null;
+    return arr.slice().sort((a,b)=>new Date(b.fin || b.inicio) - new Date(a.fin || a.inicio))[0];
+  }
 
-    return STORES.filter(s => {
-      const done = retroByDet.has(s.det);
-      const sBlock = s.start || 'NONE';
-      if (owner && s.owner !== owner) return false;
-      if (block && sBlock !== block) return false;
-      if (region && s.region !== region) return false;
-      if (status === 'DONE' && !done) return false;
-      if (status === 'PENDING' && done) return false;
-      if (search) {
-        const hay = [s.det,s.store,s.socio,s.region,s.owner].join(' ').toLocaleLowerCase('es');
-        if (!hay.includes(search)) return false;
-      }
+  function zCallState(det) {
+    const arr = zeroCallsByDet.get(det) || [];
+    if (arr.some(x => x.estatus === 'FINALIZADA')) return 'DONE';
+    if (arr.length) return 'LIVE';
+    return 'PENDING';
+  }
+
+  function zFiltered() {
+    const q = zNorm(document.querySelector('#zeroSearch')?.value);
+    const state = document.querySelector('#zeroCallStatus')?.value || '';
+    const region = document.querySelector('#zeroRegion')?.value || '';
+
+    return zeroStores.filter(x => {
+      if (state && zCallState(x.det) !== state) return false;
+      if (region && x.region !== region) return false;
+      if (q && !zNorm([x.det,x.tienda,x.region,x.socio].join(' ')).includes(q)) return false;
       return true;
     });
   }
 
-  function renderRetroPlan() {
-    const list = filteredStores();
-    const allDone = STORES.filter(s => retroByDet.has(s.det)).length;
-    const pending = STORES.length - allDone;
-    const expected = expectedNow();
-    const vsExpected = expected ? Math.round(allDone / expected * 100) : 0;
-    const totalPct = Math.round(allDone / STORES.length * 100);
+  function zRender() {
+    const root = document.querySelector('#zeroResults');
+    const kpis = document.querySelector('#zeroKpis');
+    if (!root || !kpis) return;
 
-    const k = document.querySelector('#retroPlanKpis');
-    if (k) k.innerHTML = `
-      <div class="retro-kpi"><strong>${STORES.length}</strong><span>Retros objetivo</span></div>
-      <div class="retro-kpi"><strong>${allDone}</strong><span>Con retro registrada</span></div>
-      <div class="retro-kpi"><strong>${pending}</strong><span>Pendientes</span></div>
-      <div class="retro-kpi"><strong>${expected}</strong><span>Meta esperada al corte</span></div>
-      <div class="retro-kpi"><strong>${expected ? vsExpected+'%' : '—'}</strong><span>Cumplimiento vs corte</span></div>`;
+    const done = zeroStores.filter(x=>zCallState(x.det)==='DONE').length;
+    const live = zeroStores.filter(x=>zCallState(x.det)==='LIVE').length;
+    const pending = zeroStores.length - done - live;
+    const pct = zeroStores.length ? (done / zeroStores.length * 100) : 0;
 
-    const progressText = document.querySelector('#retroPlanProgressText');
-    if (progressText) progressText.innerHTML =
-      `<span><b>Avance general:</b> ${allDone} / ${STORES.length} · ${totalPct}%</span>` +
-      `<span><b>Contactables:</b> 31 · <b>Sin cobertura:</b> 4</span>`;
+    kpis.innerHTML = `
+      <div class="zero-kpi"><strong>${zeroStores.length}</strong><span>Tiendas en 0 AF</span></div>
+      <div class="zero-kpi"><strong>${done}</strong><span>Llamadas realizadas</span></div>
+      <div class="zero-kpi"><strong>${live}</strong><span>Llamadas en curso</span></div>
+      <div class="zero-kpi"><strong>${pending}</strong><span>Pendientes</span></div>
+      <div class="zero-kpi"><strong>${pct.toFixed(1)}%</strong><span>Cobertura de llamadas</span></div>`;
 
-    const bar = document.querySelector('#retroPlanProgressBar');
-    if (bar) bar.style.width = Math.min(100,totalPct)+'%';
+    if (!zeroStores.length) {
+      root.innerHTML = '<div class="empty">Carga/procesa una BPI para calcular las tiendas en 0.</div>';
+      return;
+    }
 
-    const root = document.querySelector('#retroPlanResults');
-    if (!root) return;
+    const rows = zFiltered();
 
-    if (!list.length) {
+    if (!rows.length) {
       root.innerHTML = '<div class="empty">No hay tiendas con los filtros seleccionados.</div>';
       return;
     }
 
-    const groups = BLOCKS.map(b => ({
-      ...b,
-      rows:list.filter(s => (s.start || 'NONE') === b.key)
-    })).filter(g => g.rows.length);
+    root.innerHTML = `
+      <div class="zero-table-wrap">
+        <table class="zero-table">
+          <thead>
+            <tr>
+              <th>Estado</th><th>Determinante / tienda</th><th>Región</th><th>Socio</th>
+              <th>Trámites</th><th>AP</th><th>AF</th><th>CPRO</th>
+              <th>Fecha registrada</th><th>Resumen / cierre</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(x => {
+              const state = zCallState(x.det);
+              const calls = zeroCallsByDet.get(x.det) || [];
+              const completed = calls.filter(a=>a.estatus==='FINALIZADA');
+              const latest = (completed.length ? completed : calls)[0] || null;
 
-    root.innerHTML = groups.map(g => {
-      const done = g.rows.filter(s=>retroByDet.has(s.det)).length;
-      const rows = g.rows.map(s => {
-        const retros = retroByDet.get(s.det) || [];
-        const latest = retros[0];
-        const isDone = retros.length > 0;
-        const cs = contactState(s);
-        return `
-          <tr>
-            <td><span class="retro-status ${isDone?'done':'pending'}">${isDone?'✓ CON RETRO':'PENDIENTE'}</span></td>
-            <td><b>${escRetro(s.owner)}</b></td>
-            <td><b>${escRetro(s.det)} · ${escRetro(s.store)}</b><br><small>${escRetro(s.socio)} · ${escRetro(s.region)}</small></td>
-            <td>${s.staff}</td>
-            <td>${s.start ? `${s.start}–${s.end}` : 'SIN COBERTURA'}</td>
-            <td><b>${s.start ? add15(s.start) : 'TL / LS / RRHH'}</b></td>
-            <td><span class="retro-contact ${cs.cls}">${escRetro(cs.label)}</span></td>
-            <td><span class="retro-priority">${escRetro(s.priority)}</span></td>
-            <td>${latest ? `<b>${escRetro(latest.analistas?.nombre || '')}</b><br><small>${fmtRetroDate(latest.fecha)} · ${escRetro(latest.tipos_seguimiento?.nombre || 'SEGUIMIENTO')}</small>` : '—'}</td>
-            <td>${!isDone ? `<button class="retro-action-btn" data-retro-go="${s.det}" data-retro-region="${escRetro(s.region)}">REGISTRAR</button>` : ''}</td>
-          </tr>`;
-      }).join('');
+              const badge = state === 'DONE'
+                ? '<span class="zero-badge done">✓ LLAMADA REALIZADA</span>'
+                : state === 'LIVE'
+                  ? '<span class="zero-badge live">● EN CURSO</span>'
+                  : '<span class="zero-badge pending">PENDIENTE</span>';
 
-      return `
-        <div class="retro-block">
-          <div class="retro-block-head">
-            <div><b>${escRetro(g.label)}</b><br><small>Contacto sugerido: ${escRetro(g.contact)}</small></div>
-            <div><b>${done}/${g.rows.length}</b> atendidas · meta acumulada ${g.expected}</div>
-          </div>
-          <div class="retro-table-wrap">
-            <table class="retro-table">
-              <thead><tr>
-                <th>Estado</th><th>CPRO</th><th>PDV / región</th><th>Personal</th>
-                <th>Cobertura</th><th>Contacto</th><th>Disponibilidad</th><th>Prioridad</th>
-                <th>Última retro</th><th></th>
-              </tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-        </div>`;
-    }).join('');
+              const summary = latest
+                ? (latest.cierre || latest.notas || '').replace(/\[TIENDAS_EN_0_FECHA:[^\]]+\]\s*/g,'')
+                : '';
 
-    root.querySelectorAll('[data-retro-go]').forEach(btn => {
-      btn.onclick = () => {
-        document.querySelector('.tab[data-view="seguimiento"]')?.click();
-        setTimeout(() => {
-          const store = document.querySelector('#fuStore');
-          const region = document.querySelector('#fuRegion');
-          const reason = document.querySelector('#fuReason');
-          if (store) store.value = btn.dataset.retroGo || '';
-          if (region) region.value = btn.dataset.retroRegion || '';
-          if (reason && !reason.value) reason.value = 'RETRO DE PRODUCTIVIDAD';
-        }, 120);
-      };
+              return `<tr>
+                <td>${badge}</td>
+                <td><b>${zEsc(x.det)} · ${zEsc(x.tienda || 'SIN NOMBRE')}</b></td>
+                <td>${zEsc(x.region || '—')}</td>
+                <td>${zEsc(x.socio || '—')}</td>
+                <td>${x.tramites}</td>
+                <td>${x.aprobadas}</td>
+                <td><b>${x.finalizadas}</b></td>
+                <td>${latest ? zEsc(latest.analistas?.nombre || '—') : '—'}</td>
+                <td>${latest ? zFmt(latest.fin || latest.inicio) : '—'}</td>
+                <td class="zero-call-summary">${summary ? zEsc(summary) : '—'}</td>
+                <td>${state === 'DONE'
+                  ? ''
+                  : `<button class="zero-action" data-zero-call="${zEsc(x.det)}">📞 REGISTRAR LLAMADA</button>`}
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+    root.querySelectorAll('[data-zero-call]').forEach(btn => {
+      btn.onclick = () => zGoToActivity(btn.dataset.zeroCall);
     });
   }
 
-  function exportRetroPlan() {
-    if (typeof XLSX === 'undefined') {
-      try { if (typeof toast === 'function') toast('No está disponible XLSX'); } catch (_) {}
-      return;
-    }
+  function zGoToActivity(det) {
+    const row = zeroStores.find(x => x.det === zDet(det));
+    const date = document.querySelector('#zeroDate')?.value || zToday();
 
-    const rows = filteredStores().map(s => {
-      const rr = retroByDet.get(s.det) || [];
-      const latest = rr[0];
+    document.querySelector('.tab[data-view="actividad"]')?.click();
+
+    setTimeout(() => {
+      let type = null;
+      try {
+        if (typeof activityTypes !== 'undefined' && Array.isArray(activityTypes)) {
+          type = activityTypes.find(x => zNorm(x.nombre) === ZERO_ACTIVITY_NAME);
+        }
+      } catch (_) {}
+
+      if (!type) {
+        try { if (typeof toast === 'function') toast('Primero ejecuta el SQL para agregar la actividad TIENDAS EN 0 a CPRO.'); }
+        catch (_) { alert('Primero agrega la actividad TIENDAS EN 0 al catálogo CPRO.'); }
+        return;
+      }
+
+      try { selectedActivityType = type; } catch (_) {}
+
+      const hidden = document.querySelector('#activityType');
+      if (hidden) hidden.value = type.id;
+
+      const search = document.querySelector('#activitySearch');
+      if (search) search.value = type.nombre;
+
+      const label = document.querySelector('#activitySelectedLabel');
+      if (label) label.textContent = `Seleccionada: ${type.nombre}`;
+
+      const scope = document.querySelector('#activityScope');
+      if (scope) {
+        scope.value = 'TIENDA';
+        scope.dispatchEvent(new Event('change',{bubbles:true}));
+      }
+
+      const store = document.querySelector('#activityStore');
+      if (store) store.value = `${row?.det || det} — ${row?.socio || ''} ${row?.tienda || ''}`;
+
+      const note = document.querySelector('#activityNote');
+      if (note) {
+        const marker = zMarker(date);
+        const base = `${marker} ${row?.det || det} · ${row?.tienda || ''} · ${row?.region || ''}`;
+        if (!String(note.value || '').includes(marker)) {
+          note.value = `${base}\nResumen inicial de la llamada: `;
+        }
+      }
+
+      search?.focus();
+      note?.focus();
+    },150);
+  }
+
+  function zExport() {
+    if (!zeroStores.length || typeof XLSX === 'undefined') return;
+
+    const date = document.querySelector('#zeroDate')?.value || '';
+    const rows = zFiltered().map(x => {
+      const calls = zeroCallsByDet.get(x.det) || [];
+      const completed = calls.filter(a=>a.estatus==='FINALIZADA');
+      const latest = (completed.length ? completed : calls)[0] || null;
       return {
-        'CPRO':s.owner,
-        'DETERMINANTE':s.det,
-        'SOCIO':s.socio,
-        'TIENDA':s.store,
-        'REGIÓN':s.region,
-        'PERSONAL':s.staff,
-        'INICIO COBERTURA':s.start || 'SIN COBERTURA',
-        'SALIDA':s.end || '—',
-        'CONTACTO SUGERIDO':s.start ? add15(s.start) : 'TL / LS / RRHH',
-        'PRIORIDAD':s.priority,
-        'ESTATUS RETRO':rr.length ? 'ATENDIDA' : 'PENDIENTE',
-        'RETROS REGISTRADAS':rr.length,
-        'ÚLTIMA RETRO':latest ? fmtRetroDate(latest.fecha) : '',
-        'REGISTRADA POR':latest?.analistas?.nombre || '',
-        'TIPO':latest?.tipos_seguimiento?.nombre || '',
-        'MOTIVO':latest?.motivo || '',
-        'COMENTARIO':latest?.comentario || ''
+        'DÍA BPI':date,
+        'DETERMINANTE':x.det,
+        'TIENDA':x.tienda,
+        'REGIÓN':x.region,
+        'SOCIO':x.socio,
+        'TRÁMITES':x.tramites,
+        'APROBADAS':x.aprobadas,
+        'FINALIZADAS':x.finalizadas,
+        'ESTADO LLAMADA':zCallState(x.det)==='DONE'?'LLAMADA REALIZADA':zCallState(x.det)==='LIVE'?'EN CURSO':'PENDIENTE',
+        'CPRO':latest?.analistas?.nombre || '',
+        'FECHA REGISTRADA':latest ? zFmt(latest.fin || latest.inicio) : '',
+        'RESUMEN / CIERRE':latest ? (latest.cierre || latest.notas || '').replace(/\[TIENDAS_EN_0_FECHA:[^\]]+\]\s*/g,'') : ''
       };
     });
-
-    const summary = [
-      ['PLANEACIÓN DE RETROS CPRO','24/11/2026'],
-      ['FECHA DE AVANCE',document.querySelector('#retroPlanDate')?.value || SOURCE_DATE],
-      ['UNIVERSO',35],
-      ['CONTACTABLES',31],
-      ['SIN COBERTURA',4],
-      ['RETROS REGISTRADAS',STORES.filter(s=>retroByDet.has(s.det)).length],
-      ['PENDIENTES',STORES.filter(s=>!retroByDet.has(s.det)).length],
-      ['META ESPERADA AL CORTE',expectedNow()]
-    ];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
-    const ws2 = XLSX.utils.aoa_to_sheet(summary);
     ws['!cols'] = [
-      {wch:18},{wch:14},{wch:10},{wch:28},{wch:12},{wch:10},{wch:16},{wch:12},
-      {wch:18},{wch:22},{wch:15},{wch:15},{wch:20},{wch:20},{wch:24},{wch:35},{wch:55}
+      {wch:14},{wch:14},{wch:30},{wch:14},{wch:12},{wch:12},
+      {wch:12},{wch:12},{wch:20},{wch:20},{wch:22},{wch:60}
     ];
-    XLSX.utils.book_append_sheet(wb,ws,'PLANEACION');
+    XLSX.utils.book_append_sheet(wb,ws,'TIENDAS EN 0');
+
+    const summary = [
+      ['DÍA BPI',date],
+      ['ARCHIVO',zeroBpiMeta?.file || ''],
+      ['UNIVERSO',zeroBpiMeta?.universe || ''],
+      ['TIENDAS EN 0',zeroStores.length],
+      ['LLAMADAS REALIZADAS',zeroStores.filter(x=>zCallState(x.det)==='DONE').length],
+      ['EN CURSO',zeroStores.filter(x=>zCallState(x.det)==='LIVE').length],
+      ['PENDIENTES',zeroStores.filter(x=>zCallState(x.det)==='PENDING').length]
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(summary);
+    ws2['!cols'] = [{wch:24},{wch:45}];
     XLSX.utils.book_append_sheet(wb,ws2,'RESUMEN');
-    XLSX.writeFile(wb,`Planeacion_Retros_CPRO_${document.querySelector('#retroPlanDate')?.value || SOURCE_DATE}.xlsx`);
+
+    XLSX.writeFile(wb,`CPRO_Tiendas_en_0_${date || 'BPI'}.xlsx`);
   }
 
-  function startRetroModule() {
-    injectRetroStyles();
-    injectRetroUI();
-    document.querySelector('#globalAreaSelect')?.addEventListener('change',()=>setTimeout(syncRetroVisibility,300));
-    setInterval(syncRetroVisibility,1200);
+  function zStart() {
+    zStyles();
+    zInjectUI();
+    document.querySelector('#globalAreaSelect')?.addEventListener('change', () => setTimeout(zSyncVisibility,300));
+    setTimeout(zSyncVisibility,300);
+    setTimeout(zSyncVisibility,1200);
+    setInterval(zSyncVisibility,2500);
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startRetroModule);
+    document.addEventListener('DOMContentLoaded',zStart);
   } else {
-    startRetroModule();
+    zStart();
   }
 })();
 </script>
