@@ -1322,7 +1322,7 @@
         gap:10px;align-items:end;margin-bottom:12px
       }
       .zero-toolbar-2{
-        display:grid;grid-template-columns:1fr 220px 220px;
+        display:grid;grid-template-columns:1fr 210px 190px 190px;
         gap:10px;align-items:end;margin-bottom:15px
       }
       .zero-file-note{font-size:11px;opacity:.68;margin-top:5px}
@@ -1482,12 +1482,21 @@
             <label>Región
               <select id="zeroRegion"><option value="">Todas</option></select>
             </label>
+            <label>Socio
+              <select id="zeroSocio">
+                <option value="">Todos</option>
+                <option value="WM">Walmart</option>
+                <option value="SAMS">Sam's</option>
+                <option value="CH">Chedraui</option>
+                <option value="CC">City Club</option>
+              </select>
+            </label>
           </div>
 
           <div class="zero-kpis" id="zeroKpis"></div>
 
           <div class="zero-info">
-            <b>Cómo funciona:</b> la BPI define las tiendas con <b>0 finalizadas</b> para el día seleccionado.
+            <b>Cómo funciona:</b> la BPI define las tiendas con <b>0 aprobadas</b> para el día seleccionado.
             Si la base de tiendas permite identificar estatus <b>OPERANDO</b>, ese será el universo.
             Cuando CPRO registre y finalice la actividad <b>TIENDAS EN 0</b> para esa determinante,
             se marcará como <b>LLAMADA REALIZADA</b> y aquí aparecerán responsable, fecha y resumen/cierre.
@@ -1524,6 +1533,7 @@
     document.querySelector('#zeroSearch').addEventListener('input', zRender);
     document.querySelector('#zeroCallStatus').addEventListener('change', zRender);
     document.querySelector('#zeroRegion').addEventListener('change', zRender);
+    document.querySelector('#zeroSocio').addEventListener('change', zRender);
     document.querySelector('#zeroDate').addEventListener('change', async () => {
       zeroStores = [];
       zeroCallsByDet = new Map();
@@ -1927,10 +1937,11 @@
         a.aprobadas++;
       }
 
-      const bankStatus = zNorm(r[bankKey]);
-      if (bankStatus === 'COMPLETO' || bankStatus === 'COMPLETA') {
-        a.finalizadas++;
-      }
+      // En esta BPI no existe ESTATUS PROCESO/AF del día.
+      // Para TIENDAS EN 0 usamos el indicador que sí existe en BPI:
+      // App Status aprobado / approve / garantizada.
+      // "finalizadas" se conserva en 0 solo por compatibilidad con la tabla.
+      a.finalizadas = 0;
     }
 
     // ------------------ PROIND: universo real OPERANDO ------------------
@@ -1961,9 +1972,10 @@
       };
     }).filter(x =>
       x.det &&
+      x.det !== '0' &&
       zNorm(x.socio) !== 'IKEA' &&
       !zNorm(x.tienda).includes('IKEA') &&
-      x.finalizadas === 0
+      x.aprobadas === 0
     );
 
     zeroBpiMeta = {
@@ -1973,8 +1985,8 @@
       rows:nov.rows.length,
       dateKey:'FECHA DE CREACIÓN',
       detKey:'DETERMINANTE',
-      processKey:'ESTATUS BANCO = COMPLETO',
-      approvalKey:'App Status = Approve/Garantizada',
+      processKey:'App Status = APROBADA / APPROVE / GARANTIZADA',
+      approvalKey:'App Status = APROBADA / APPROVE / GARANTIZADA',
       universe:'PROIND · ESTATUS OPERANDO'
     };
 
@@ -1988,7 +2000,7 @@
     document.querySelector('#zeroMapPanel')?.classList.remove('show');
     document.querySelector('#zeroBpiMeta').textContent =
       `${fileName} · ${nov.sheetName} · Día: ${selectedDate} · ` +
-      `AF = ESTATUS BANCO COMPLETO · Universo: PROIND OPERANDO`;
+      `Cero = 0 AP en App Status · Universo: PROIND OPERANDO (sin IKEA / determinantes inválidas)`;
 
     zFillRegions();
     await zRefreshCalls();
@@ -2211,10 +2223,12 @@
     const q = zNorm(document.querySelector('#zeroSearch')?.value);
     const state = document.querySelector('#zeroCallStatus')?.value || '';
     const region = document.querySelector('#zeroRegion')?.value || '';
+    const socio = document.querySelector('#zeroSocio')?.value || '';
 
     return zeroStores.filter(x => {
       if (state && zCallState(x.det) !== state) return false;
       if (region && x.region !== region) return false;
+      if (socio && zNorm(x.socio) !== zNorm(socio)) return false;
       if (q && !zNorm([x.det,x.tienda,x.region,x.socio].join(' ')).includes(q)) return false;
       return true;
     });
@@ -2231,7 +2245,7 @@
     const pct = zeroStores.length ? (done / zeroStores.length * 100) : 0;
 
     kpis.innerHTML = `
-      <div class="zero-kpi"><strong>${zeroStores.length}</strong><span>Tiendas en 0 AF</span></div>
+      <div class="zero-kpi"><strong>${zeroStores.length}</strong><span>Tiendas en 0 BPI</span></div>
       <div class="zero-kpi"><strong>${done}</strong><span>Llamadas realizadas</span></div>
       <div class="zero-kpi"><strong>${live}</strong><span>Llamadas en curso</span></div>
       <div class="zero-kpi"><strong>${pending}</strong><span>Pendientes</span></div>
@@ -2255,7 +2269,7 @@
           <thead>
             <tr>
               <th>Estado</th><th>Determinante / tienda</th><th>Región</th><th>Socio</th>
-              <th>CPRO asignada</th><th>Trámites</th><th>AP</th><th>AF</th><th>Llamada por</th>
+              <th>CPRO asignada</th><th>Trámites</th><th>AP BPI</th><th>Llamada por</th>
               <th>Fecha registrada</th><th>Resumen / cierre</th><th></th>
             </tr>
           </thead>
@@ -2283,8 +2297,7 @@
                 <td>${zEsc(x.socio || '—')}</td>
                 <td>${zEsc(x.cpro || '—')}</td>
                 <td>${x.tramites}</td>
-                <td>${x.aprobadas}</td>
-                <td><b>${x.finalizadas}</b></td>
+                <td><b>${x.aprobadas}</b></td>
                 <td>${latest ? zEsc(latest.analistas?.nombre || '—') : '—'}</td>
                 <td>${latest ? zFmt(latest.fin || latest.inicio) : '—'}</td>
                 <td class="zero-call-summary">${summary ? zEsc(summary) : '—'}</td>
@@ -2373,8 +2386,7 @@
         'SOCIO':x.socio,
         'CPRO ASIGNADA':x.cpro || '',
         'TRÁMITES':x.tramites,
-        'APROBADAS':x.aprobadas,
-        'FINALIZADAS':x.finalizadas,
+        'AP BPI':x.aprobadas,
         'ESTADO LLAMADA':zCallState(x.det)==='DONE'?'LLAMADA REALIZADA':zCallState(x.det)==='LIVE'?'EN CURSO':'PENDIENTE',
         'LLAMADA POR':latest?.analistas?.nombre || '',
         'FECHA REGISTRADA':latest ? zFmt(latest.fin || latest.inicio) : '',
@@ -2385,7 +2397,7 @@
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      {wch:14},{wch:14},{wch:30},{wch:14},{wch:12},{wch:18},{wch:12},
+      {wch:14},{wch:14},{wch:30},{wch:14},{wch:12},{wch:18},
       {wch:12},{wch:12},{wch:20},{wch:20},{wch:22},{wch:60}
     ];
     XLSX.utils.book_append_sheet(wb,ws,'TIENDAS EN 0');
