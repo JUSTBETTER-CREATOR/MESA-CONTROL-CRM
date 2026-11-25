@@ -661,7 +661,7 @@
 
           <div class="cpro-hist-help">
             Puedes filtrar por día, determinante, CPRO responsable, región o promotor y combinar los filtros.
-            El resultado incluye seguimientos y actividades, con las personas/promotores seleccionados.
+            Para descargar únicamente las retros de un día, selecciona el Día, elige Seguimientos en Tipo de registro, busca y después descarga el Excel.
           </div>
 
           <div id="cproHistFilterTags"></div>
@@ -1248,6 +1248,7 @@
   let zeroBpiRows = [];
   let zeroBpiMeta = null;
   let zeroStores = [];
+  let zeroPendingBpi = null;
   let zeroCallsByDet = new Map();
   let zeroAreaId = null;
 
@@ -1325,6 +1326,30 @@
         gap:10px;align-items:end;margin-bottom:15px
       }
       .zero-file-note{font-size:11px;opacity:.68;margin-top:5px}
+      .zero-map-panel{
+        display:none;
+        margin:0 0 15px;
+        padding:14px;
+        border:1px solid rgba(15,75,67,.25);
+        background:rgba(255,255,255,.58)
+      }
+      .zero-map-panel.show{display:block}
+      .zero-map-title{font-weight:900;margin-bottom:5px}
+      .zero-map-help{font-size:11px;opacity:.72;margin-bottom:12px;line-height:1.45}
+      .zero-map-grid{
+        display:grid;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:10px;
+        align-items:end
+      }
+      .zero-map-grid select{width:100%}
+      .zero-map-actions{margin-top:11px;display:flex;gap:8px;flex-wrap:wrap}
+      @media(max-width:950px){
+        .zero-map-grid{grid-template-columns:1fr 1fr}
+      }
+      @media(max-width:620px){
+        .zero-map-grid{grid-template-columns:1fr}
+      }
       .zero-kpis{
         display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
         gap:10px;margin:12px 0 16px
@@ -1416,6 +1441,32 @@
             <button id="zeroExport" disabled>📥 EXCEL</button>
           </div>
 
+          <div class="zero-map-panel" id="zeroMapPanel">
+            <div class="zero-map-title">⚙️ Indica qué columnas usa esta BPI</div>
+            <div class="zero-map-help" id="zeroMapHelp">
+              No reconocí automáticamente uno o más encabezados. Selecciona las columnas reales del archivo y presiona CALCULAR.
+              La columna de fecha puede dejarse vacía si la BPI ya corresponde únicamente al día seleccionado.
+            </div>
+            <div class="zero-map-grid">
+              <label>Determinante *
+                <select id="zeroMapDet"></select>
+              </label>
+              <label>Fecha
+                <select id="zeroMapDate"></select>
+              </label>
+              <label>Finalizadas / estatus *
+                <select id="zeroMapFinal"></select>
+              </label>
+              <label>Aprobadas / estatus AP
+                <select id="zeroMapApproval"></select>
+              </label>
+            </div>
+            <div class="zero-map-actions">
+              <button class="primary" id="zeroMapApply">✅ CALCULAR CON ESTAS COLUMNAS</button>
+              <button id="zeroMapCancel">CANCELAR</button>
+            </div>
+          </div>
+
           <div class="zero-toolbar-2">
             <label>Buscar determinante / tienda
               <input id="zeroSearch" placeholder="Ej. 6293 o Santa Catarina">
@@ -1464,6 +1515,11 @@
     };
 
     document.querySelector('#zeroProcessBpi').onclick = zProcessBpi;
+    document.querySelector('#zeroMapApply').onclick = zApplyMapping;
+    document.querySelector('#zeroMapCancel').onclick = () => {
+      document.querySelector('#zeroMapPanel')?.classList.remove('show');
+      zeroPendingBpi = null;
+    };
     document.querySelector('#zeroExport').onclick = zExport;
     document.querySelector('#zeroSearch').addEventListener('input', zRender);
     document.querySelector('#zeroCallStatus').addEventListener('change', zRender);
@@ -1543,15 +1599,402 @@
         const row = aoa[r] || [];
         const hs = row.map(x => zNorm(x));
         let score = 0;
-        if (hs.some(x => x === 'DETERMINANTE' || x.includes('DETERMINANTE'))) score += 5;
-        if (hs.some(x => x.includes('FECHA'))) score += 4;
-        if (hs.some(x => x.includes('ESTATUS PROCESO') || x.includes('FINALIZAD'))) score += 4;
-        if (hs.some(x => x.includes('APROB'))) score += 1;
+        if (hs.some(x => x === 'DETERMINANTE' || x.includes('DETERMINANTE') || x === 'DET' || x.startsWith('DET '))) score += 5;
+        if (hs.some(x => x.includes('TIENDA') || x.includes('SUCURSAL'))) score += 1;
+        if (hs.some(x => x.includes('FECHA') || x === 'DIA')) score += 4;
+        if (hs.some(x => x.includes('ESTATUS PROCESO') || x.includes('FINALIZAD') || x === 'AF')) score += 4;
+        if (hs.some(x => x.includes('APROB') || x === 'AP')) score += 1;
 
         if (!best || score > best.score) best = {name,row:r,score};
       }
     }
     return best;
+  }
+
+  function zFillMapSelect(id, headers, value='', optional=false) {
+    const sel = document.querySelector('#'+id);
+    if (!sel) return;
+    sel.innerHTML =
+      (optional ? '<option value="">— No usar —</option>' : '<option value="">Selecciona columna…</option>') +
+      headers.map(h => `<option value="${zEsc(h)}">${zEsc(h)}</option>`).join('');
+    if (value && headers.includes(value)) sel.value = value;
+  }
+
+  function zShowMapping(headers, detected, fileName, sheetName, rows, selectedDate) {
+    zeroPendingBpi = {headers, detected, fileName, sheetName, rows, selectedDate};
+
+    zFillMapSelect('zeroMapDet', headers, detected.detKey || '', false);
+    zFillMapSelect('zeroMapDate', headers, detected.dateKey || '', true);
+    zFillMapSelect('zeroMapFinal', headers, detected.finalKey || '', false);
+    zFillMapSelect('zeroMapApproval', headers, detected.approvalKey || '', true);
+
+    const missing = [];
+    if (!detected.detKey) missing.push('Determinante');
+    if (!detected.finalKey) missing.push('Finalizadas / estatus');
+
+    const help = document.querySelector('#zeroMapHelp');
+    if (help) {
+      help.innerHTML = missing.length
+        ? `No reconocí automáticamente: <b>${missing.map(zEsc).join(', ')}</b>. Selecciona las columnas reales del archivo.`
+        : 'Puedes corregir manualmente las columnas detectadas antes de calcular.';
+    }
+
+    document.querySelector('#zeroMapPanel')?.classList.add('show');
+    document.querySelector('#zeroBpiMeta').textContent =
+      `${fileName} · ${sheetName} · necesito confirmar columnas`;
+  }
+
+  async function zApplyMapping() {
+    if (!zeroPendingBpi) return alert('Primero carga una BPI.');
+
+    const detKey = document.querySelector('#zeroMapDet')?.value || '';
+    const dateKey = document.querySelector('#zeroMapDate')?.value || '';
+    const finalKey = document.querySelector('#zeroMapFinal')?.value || '';
+    const approvalKey = document.querySelector('#zeroMapApproval')?.value || '';
+
+    if (!detKey) return alert('Selecciona la columna DETERMINANTE.');
+    if (!finalKey) return alert('Selecciona la columna que indica FINALIZADAS o el ESTATUS.');
+
+    document.querySelector('#zeroMapPanel')?.classList.remove('show');
+
+    await zCalculateBpi({
+      fileName: zeroPendingBpi.fileName,
+      sheetName: zeroPendingBpi.sheetName,
+      rows: zeroPendingBpi.rows,
+      selectedDate: zeroPendingBpi.selectedDate,
+      detKey,
+      dateKey,
+      finalKey,
+      approvalKey
+    });
+  }
+
+  async function zCalculateBpi({fileName, sheetName, rows, selectedDate, detKey, dateKey, finalKey, approvalKey}) {
+    const allAgg = new Map();
+    const dayAgg = new Map();
+
+    for (const row of rows) {
+      const det = zDet(row[detKey]);
+      if (!det) continue;
+
+      if (!allAgg.has(det)) allAgg.set(det, {det,rows:0});
+      allAgg.get(det).rows++;
+
+      const rowDate = dateKey ? zDateKey(row[dateKey]) : selectedDate;
+      if (dateKey && rowDate !== selectedDate) continue;
+
+      if (!dayAgg.has(det)) {
+        dayAgg.set(det, {det,tramites:0,aprobadas:0,finalizadas:0});
+      }
+      const a = dayAgg.get(det);
+      a.tramites++;
+
+      if (approvalKey) {
+        const rawAp = row[approvalKey];
+        const nAp = Number(String(rawAp ?? '').replace(',','.'));
+        if (Number.isFinite(nAp) && String(rawAp).trim() !== '') {
+          a.aprobadas += nAp;
+        } else {
+          const apText = zNorm(rawAp);
+          if (apText.includes('APROBAD') || apText === 'AP') a.aprobadas++;
+        }
+      }
+
+      const rawFinal = row[finalKey];
+      const txtFinal = zNorm(rawFinal);
+      const numFinal = Number(String(rawFinal ?? '').replace(',','.'));
+
+      if (String(rawFinal ?? '').trim() !== '' && Number.isFinite(numFinal)) {
+        // Columna numérica AF / FINALIZADAS.
+        a.finalizadas += numFinal;
+      } else if (
+        txtFinal.includes('FINALIZAD') ||
+        txtFinal === 'AF' ||
+        txtFinal === 'COMPLETO' ||
+        txtFinal === 'COMPLETA'
+      ) {
+        // Columna categórica / estatus.
+        a.finalizadas++;
+      }
+    }
+
+    let catalog = [];
+    try {
+      if (typeof stores !== 'undefined' && Array.isArray(stores) && stores.length) {
+        catalog = stores.slice();
+      }
+    } catch (_) {}
+
+    if (!catalog.length) {
+      const {data,error} = await sb.from('tiendas').select('*').range(0,4999);
+      if (error) throw error;
+      catalog = data || [];
+    }
+
+    const nonIkea = catalog.filter(s => zNorm(s?.socio) !== 'IKEA');
+
+    const statusKeys = ['estatus','status','estatus_operacion','estado_operacion','operando','activo'];
+    let hasOperatingStatus = false;
+
+    for (const s of nonIkea) {
+      for (const k of statusKeys) {
+        if (Object.prototype.hasOwnProperty.call(s || {}, k)) {
+          if (zNorm(s[k]) === 'OPERANDO') hasOperatingStatus = true;
+        }
+      }
+    }
+
+    let universe;
+    if (hasOperatingStatus) {
+      universe = nonIkea.filter(s =>
+        statusKeys.some(k => zNorm(s?.[k]) === 'OPERANDO')
+      );
+    } else {
+      universe = nonIkea.filter(s => allAgg.has(zDet(s?.determinante)));
+    }
+
+    zeroStores = universe.map(s => {
+      const det = zDet(s?.determinante);
+      const a = dayAgg.get(det) || {tramites:0,aprobadas:0,finalizadas:0};
+      return {
+        det,
+        tienda:String(s?.nombre_tienda || s?.tienda || '').trim(),
+        region:String(s?.region || '').trim(),
+        socio:String(s?.socio || '').trim(),
+        tramites:Number(a.tramites || 0),
+        aprobadas:Number(a.aprobadas || 0),
+        finalizadas:Number(a.finalizadas || 0)
+      };
+    }).filter(x => x.det && x.finalizadas === 0);
+
+    zeroBpiMeta = {
+      file:fileName,
+      sheet:sheetName,
+      date:selectedDate,
+      rows:rows.length,
+      dateKey:dateKey || '',
+      detKey,
+      processKey:finalKey,
+      approvalKey:approvalKey || '',
+      universe:hasOperatingStatus ? 'TIENDAS OPERANDO' : 'DETERMINANTES PRESENTES EN BPI'
+    };
+
+    try {
+      localStorage.setItem(ZERO_CACHE_PREFIX + selectedDate, JSON.stringify({
+        meta:zeroBpiMeta,
+        zeroStores
+      }));
+    } catch (_) {}
+
+    document.querySelector('#zeroBpiMeta').textContent =
+      `${fileName} · ${sheetName} · ${rows.length} filas · AF: ${finalKey} · Universo: ${zeroBpiMeta.universe}`;
+
+    zFillRegions();
+    await zRefreshCalls();
+    document.querySelector('#zeroExport').disabled = !zeroStores.length;
+    zeroPendingBpi = null;
+  }
+
+
+  function zSheetRows(wb, wantedName, requiredHeaders=[]) {
+    const sheetName = wb.SheetNames.find(n => zNorm(n) === zNorm(wantedName));
+    if (!sheetName) return null;
+
+    const ws = wb.Sheets[sheetName];
+    const aoa = XLSX.utils.sheet_to_json(ws, {header:1,defval:'',raw:true});
+    let headerRow = 0;
+
+    for (let i=0; i<Math.min(20,aoa.length); i++) {
+      const headers = (aoa[i] || []).map(zNorm);
+      const ok = requiredHeaders.every(h =>
+        headers.some(x => x === zNorm(h) || x.includes(zNorm(h)))
+      );
+      if (ok) { headerRow = i; break; }
+    }
+
+    const rows = XLSX.utils.sheet_to_json(ws, {
+      range:headerRow,
+      defval:'',
+      raw:true
+    });
+
+    return {sheetName, headerRow, rows};
+  }
+
+  function zSocioFromText(v) {
+    const s = zNorm(v);
+    if (s.startsWith('SAMS')) return 'SAMS';
+    if (s.startsWith('WM ') || s.startsWith('WALMART')) return 'WM';
+    if (s.startsWith('CH ') || s.includes('CHEDRAUI')) return 'CH';
+    if (s.startsWith('CC ') || s.includes('CITY CLUB')) return 'CC';
+    if (s.includes('IKEA')) return 'IKEA';
+    return '';
+  }
+
+  async function zTryKnownNovemberBpi(wb, selectedDate, fileName) {
+    const nov = zSheetRows(
+      wb,
+      'NOVIEMBRE',
+      ['DETERMINANTE','FECHA DE CREACIÓN','ESTATUS BANCO']
+    );
+    const proind = zSheetRows(
+      wb,
+      'PROIND',
+      ['DETERMINANTE','ESTATUS']
+    );
+    const cerradores = zSheetRows(
+      wb,
+      'CERRADORES',
+      ['DETERMINANTE','SEDE','REGION','EJECUTIVA']
+    );
+
+    if (!nov || !proind || !cerradores || !nov.rows.length) return false;
+
+    const novHeaders = Object.keys(nov.rows[0] || {});
+    const detKey = zFindHeader(novHeaders,['DETERMINANTE'],['DETERMINANTE']);
+    const dateKey = zFindHeader(
+      novHeaders,
+      ['FECHA DE CREACIÓN','FECHA CREACION','FECHA DE CREACION'],
+      ['FECHA DE CRE']
+    );
+    const bankKey = zFindHeader(
+      novHeaders,
+      ['ESTATUS BANCO'],
+      ['ESTATUS BANCO']
+    );
+    const appKey = zFindHeader(
+      novHeaders,
+      ['APP STATUS','App Status'],
+      ['APP STATUS']
+    );
+    const sedeKey = zFindHeader(
+      novHeaders,
+      ['SEDE'],
+      ['SEDE']
+    );
+    const productKey = zFindHeader(
+      novHeaders,
+      ['PRODUCTO'],
+      ['PRODUCTO']
+    );
+
+    if (!detKey || !dateKey || !bankKey) return false;
+
+    // ------------------ CERRADORES: metadata por determinante ------------------
+    const cerrMeta = new Map();
+    for (const r of cerradores.rows) {
+      const det = zDet(r['DETERMINANTE']);
+      if (!det) continue;
+      cerrMeta.set(det,{
+        det,
+        tienda:String(r['SEDE'] || '').trim(),
+        region:String(r['REGION'] ?? '').trim(),
+        cpro:String(r['EJECUTIVA'] || '').trim(),
+        socio:zSocioFromText(r['SEDE'])
+      });
+    }
+
+    // ------------------ NOVIEMBRE: resultados del día seleccionado ------------------
+    const dayAgg = new Map();
+    const firstMetaFromBpi = new Map();
+
+    for (const r of nov.rows) {
+      const det = zDet(r[detKey]);
+      if (!det) continue;
+
+      if (!firstMetaFromBpi.has(det)) {
+        firstMetaFromBpi.set(det,{
+          tienda:String(r[sedeKey] || '').trim(),
+          socio:zSocioFromText(r[sedeKey]) || zSocioFromText(r[productKey])
+        });
+      }
+
+      if (zDateKey(r[dateKey]) !== selectedDate) continue;
+
+      if (!dayAgg.has(det)) {
+        dayAgg.set(det,{tramites:0,aprobadas:0,finalizadas:0});
+      }
+      const a = dayAgg.get(det);
+      a.tramites++;
+
+      const appStatus = zNorm(r[appKey]);
+      if (
+        appStatus.includes('APPROVE') ||
+        appStatus.includes('APPROVED') ||
+        appStatus.includes('GARANTIZADA') ||
+        appStatus.includes('APROBADA')
+      ) {
+        a.aprobadas++;
+      }
+
+      const bankStatus = zNorm(r[bankKey]);
+      if (bankStatus === 'COMPLETO' || bankStatus === 'COMPLETA') {
+        a.finalizadas++;
+      }
+    }
+
+    // ------------------ PROIND: universo real OPERANDO ------------------
+    const operatingDets = new Set();
+    for (const r of proind.rows) {
+      const det = zDet(r['DETERMINANTE']);
+      if (!det) continue;
+      if (zNorm(r['ESTATUS']) !== 'OPERANDO') continue;
+      operatingDets.add(det);
+    }
+
+    zeroStores = [...operatingDets].map(det => {
+      const a = dayAgg.get(det) || {tramites:0,aprobadas:0,finalizadas:0};
+      const c = cerrMeta.get(det) || {};
+      const b = firstMetaFromBpi.get(det) || {};
+      const tienda = c.tienda || b.tienda || '';
+      const socio = c.socio || b.socio || '';
+
+      return {
+        det,
+        tienda,
+        region:c.region || '',
+        socio,
+        cpro:c.cpro || '',
+        tramites:Number(a.tramites || 0),
+        aprobadas:Number(a.aprobadas || 0),
+        finalizadas:Number(a.finalizadas || 0)
+      };
+    }).filter(x =>
+      x.det &&
+      zNorm(x.socio) !== 'IKEA' &&
+      !zNorm(x.tienda).includes('IKEA') &&
+      x.finalizadas === 0
+    );
+
+    zeroBpiMeta = {
+      file:fileName,
+      sheet:nov.sheetName,
+      date:selectedDate,
+      rows:nov.rows.length,
+      dateKey:'FECHA DE CREACIÓN',
+      detKey:'DETERMINANTE',
+      processKey:'ESTATUS BANCO = COMPLETO',
+      approvalKey:'App Status = Approve/Garantizada',
+      universe:'PROIND · ESTATUS OPERANDO'
+    };
+
+    try {
+      localStorage.setItem(ZERO_CACHE_PREFIX + selectedDate, JSON.stringify({
+        meta:zeroBpiMeta,
+        zeroStores
+      }));
+    } catch (_) {}
+
+    document.querySelector('#zeroMapPanel')?.classList.remove('show');
+    document.querySelector('#zeroBpiMeta').textContent =
+      `${fileName} · ${nov.sheetName} · Día: ${selectedDate} · ` +
+      `AF = ESTATUS BANCO COMPLETO · Universo: PROIND OPERANDO`;
+
+    zFillRegions();
+    await zRefreshCalls();
+    document.querySelector('#zeroExport').disabled = !zeroStores.length;
+    zeroPendingBpi = null;
+    return true;
   }
 
   async function zProcessBpi() {
@@ -1569,10 +2012,17 @@
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, {type:'array',cellDates:true});
+
+      // Formato real BPI NOVIEMBRE 2411:
+      // NOVIEMBRE + PROIND + CERRADORES.
+      // Si coincide, se procesa automáticamente sin pedir mapeo.
+      const processedKnown = await zTryKnownNovemberBpi(wb, selectedDate, file.name);
+      if (processedKnown) return;
+
       const best = zFindBestSheet(wb);
 
-      if (!best || best.score < 5) {
-        throw new Error('No pude identificar la hoja/encabezados de la BPI.');
+      if (!best || best.score < 1) {
+        throw new Error('No pude identificar automáticamente la fila de encabezados. Revisa que el archivo tenga nombres de columnas visibles.');
       }
 
       const ws = wb.Sheets[best.name];
@@ -1586,7 +2036,7 @@
 
       const headers = Object.keys(zeroBpiRows[0] || {});
       const detKey = zFindHeader(headers,
-        ['DETERMINANTE','DET','DETERMINANTE TIENDA'],
+        ['DETERMINANTE','DET','DETERMINANTE TIENDA','NO. TIENDA','NUMERO TIENDA'],
         ['DETERMINANTE']
       );
       const dateKey = zFindHeader(headers,
@@ -1594,129 +2044,42 @@
         ['FECHA']
       );
       const processKey = zFindHeader(headers,
-        ['ESTATUS PROCESO','ESTATUS DE PROCESO','PROCESO'],
-        ['ESTATUS PROCESO']
+        ['ESTATUS PROCESO','ESTATUS DE PROCESO','PROCESO','ESTATUS BANCO'],
+        ['ESTATUS PROCESO','ESTATUS BANCO']
       );
       const finalCountKey = zFindHeader(headers,
-        ['FINALIZADAS','AF','APROBADAS FINALIZADAS'],
+        ['FINALIZADAS','AF','APROBADAS FINALIZADAS','FINALIZADO','FINALIZADA'],
         ['FINALIZAD']
       );
       const approvalKey = zFindHeader(headers,
-        ['ESTATUS','ESTATUS SOLICITUD','ESTATUS DE SOLICITUD','RESULTADO'],
-        ['APROB']
+        ['APROBADAS','AP','ESTATUS','ESTATUS SOLICITUD','ESTATUS DE SOLICITUD','RESULTADO'],
+        ['APROBAD']
       );
 
-      if (!detKey) throw new Error('No encontré la columna DETERMINANTE.');
-      if (!processKey && !finalCountKey) {
-        throw new Error('No encontré ESTATUS PROCESO ni una columna FINALIZADAS/AF. No haré el cálculo para evitar falsos ceros.');
-      }
+      const finalKey = finalCountKey || processKey || '';
 
-      const allAgg = new Map();
-      const dayAgg = new Map();
-
-      for (const row of zeroBpiRows) {
-        const det = zDet(row[detKey]);
-        if (!det) continue;
-
-        if (!allAgg.has(det)) allAgg.set(det, {det,rows:0});
-        allAgg.get(det).rows++;
-
-        const rowDate = dateKey ? zDateKey(row[dateKey]) : selectedDate;
-        if (dateKey && rowDate !== selectedDate) continue;
-
-        if (!dayAgg.has(det)) dayAgg.set(det, {
-          det,tramites:0,aprobadas:0,finalizadas:0
-        });
-        const a = dayAgg.get(det);
-        a.tramites++;
-
-        if (approvalKey && zNorm(row[approvalKey]).includes('APROBAD')) a.aprobadas++;
-
-        if (finalCountKey) {
-          const n = Number(String(row[finalCountKey]).replace(',','.'));
-          if (Number.isFinite(n)) a.finalizadas += n;
-          else if (zNorm(row[finalCountKey]).includes('FINALIZAD')) a.finalizadas++;
-        } else if (processKey && zNorm(row[processKey]).includes('FINALIZAD')) {
-          a.finalizadas++;
-        }
-      }
-
-      // Load store universe from Supabase/global store catalog.
-      let catalog = [];
-      try {
-        if (typeof stores !== 'undefined' && Array.isArray(stores) && stores.length) {
-          catalog = stores.slice();
-        }
-      } catch (_) {}
-
-      if (!catalog.length) {
-        const {data,error} = await sb.from('tiendas').select('*').range(0,4999);
-        if (error) throw error;
-        catalog = data || [];
-      }
-
-      const nonIkea = catalog.filter(s => zNorm(s?.socio) !== 'IKEA');
-
-      const statusKeys = ['estatus','status','estatus_operacion','estado_operacion','operando','activo'];
-      let hasOperatingStatus = false;
-
-      for (const s of nonIkea) {
-        for (const k of statusKeys) {
-          if (Object.prototype.hasOwnProperty.call(s || {}, k)) {
-            const val = zNorm(s[k]);
-            if (val === 'OPERANDO') hasOperatingStatus = true;
-          }
-        }
-      }
-
-      let universe;
-      if (hasOperatingStatus) {
-        universe = nonIkea.filter(s =>
-          statusKeys.some(k => zNorm(s?.[k]) === 'OPERANDO')
+      if (!detKey || !finalKey) {
+        zShowMapping(
+          headers,
+          {detKey, dateKey, finalKey, approvalKey},
+          file.name,
+          best.name,
+          zeroBpiRows,
+          selectedDate
         );
       } else {
-        // Fallback: determinants present somewhere in the uploaded BPI.
-        universe = nonIkea.filter(s => allAgg.has(zDet(s?.determinante)));
+        document.querySelector('#zeroMapPanel')?.classList.remove('show');
+        await zCalculateBpi({
+          fileName:file.name,
+          sheetName:best.name,
+          rows:zeroBpiRows,
+          selectedDate,
+          detKey,
+          dateKey,
+          finalKey,
+          approvalKey
+        });
       }
-
-      zeroStores = universe.map(s => {
-        const det = zDet(s?.determinante);
-        const a = dayAgg.get(det) || {tramites:0,aprobadas:0,finalizadas:0};
-        return {
-          det,
-          tienda:String(s?.nombre_tienda || s?.tienda || '').trim(),
-          region:String(s?.region || '').trim(),
-          socio:String(s?.socio || '').trim(),
-          tramites:Number(a.tramites || 0),
-          aprobadas:Number(a.aprobadas || 0),
-          finalizadas:Number(a.finalizadas || 0)
-        };
-      }).filter(x => x.det && x.finalizadas === 0);
-
-      zeroBpiMeta = {
-        file:file.name,
-        sheet:best.name,
-        date:selectedDate,
-        rows:zeroBpiRows.length,
-        dateKey:dateKey || '',
-        detKey,
-        processKey:processKey || finalCountKey || '',
-        universe:hasOperatingStatus ? 'TIENDAS OPERANDO' : 'DETERMINANTES PRESENTES EN BPI'
-      };
-
-      try {
-        localStorage.setItem(ZERO_CACHE_PREFIX + selectedDate, JSON.stringify({
-          meta:zeroBpiMeta,
-          zeroStores
-        }));
-      } catch (_) {}
-
-      document.querySelector('#zeroBpiMeta').textContent =
-        `${file.name} · ${best.name} · ${zeroBpiRows.length} filas · Universo: ${zeroBpiMeta.universe}`;
-
-      zFillRegions();
-      await zRefreshCalls();
-      document.querySelector('#zeroExport').disabled = !zeroStores.length;
     } catch (e) {
       console.error(e);
       alert('No pude procesar la BPI: ' + e.message);
@@ -1892,7 +2255,7 @@
           <thead>
             <tr>
               <th>Estado</th><th>Determinante / tienda</th><th>Región</th><th>Socio</th>
-              <th>Trámites</th><th>AP</th><th>AF</th><th>CPRO</th>
+              <th>CPRO asignada</th><th>Trámites</th><th>AP</th><th>AF</th><th>Llamada por</th>
               <th>Fecha registrada</th><th>Resumen / cierre</th><th></th>
             </tr>
           </thead>
@@ -1918,6 +2281,7 @@
                 <td><b>${zEsc(x.det)} · ${zEsc(x.tienda || 'SIN NOMBRE')}</b></td>
                 <td>${zEsc(x.region || '—')}</td>
                 <td>${zEsc(x.socio || '—')}</td>
+                <td>${zEsc(x.cpro || '—')}</td>
                 <td>${x.tramites}</td>
                 <td>${x.aprobadas}</td>
                 <td><b>${x.finalizadas}</b></td>
@@ -2007,11 +2371,12 @@
         'TIENDA':x.tienda,
         'REGIÓN':x.region,
         'SOCIO':x.socio,
+        'CPRO ASIGNADA':x.cpro || '',
         'TRÁMITES':x.tramites,
         'APROBADAS':x.aprobadas,
         'FINALIZADAS':x.finalizadas,
         'ESTADO LLAMADA':zCallState(x.det)==='DONE'?'LLAMADA REALIZADA':zCallState(x.det)==='LIVE'?'EN CURSO':'PENDIENTE',
-        'CPRO':latest?.analistas?.nombre || '',
+        'LLAMADA POR':latest?.analistas?.nombre || '',
         'FECHA REGISTRADA':latest ? zFmt(latest.fin || latest.inicio) : '',
         'RESUMEN / CIERRE':latest ? (latest.cierre || latest.notas || '').replace(/\[TIENDAS_EN_0_FECHA:[^\]]+\]\s*/g,'') : ''
       };
@@ -2020,7 +2385,7 @@
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      {wch:14},{wch:14},{wch:30},{wch:14},{wch:12},{wch:12},
+      {wch:14},{wch:14},{wch:30},{wch:14},{wch:12},{wch:18},{wch:12},
       {wch:12},{wch:12},{wch:20},{wch:20},{wch:22},{wch:60}
     ];
     XLSX.utils.book_append_sheet(wb,ws,'TIENDAS EN 0');
