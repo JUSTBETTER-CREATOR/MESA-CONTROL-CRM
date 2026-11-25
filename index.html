@@ -866,6 +866,9 @@
     tags.innerHTML = filterTags.map(x => `<span class="cpro-hist-filtertag">${esc(x)}</span>`).join('');
 
     try {
+      const cproAreaId = await getCPROAreaId();
+      if (!cproAreaId) throw new Error('No pude identificar el área CPRO.');
+
       let followups = [];
       let activities = [];
 
@@ -877,7 +880,8 @@
             tipos_seguimiento(nombre),
             seguimiento_personas(personas(nombre_completo)),
             evidencias(id,nombre_archivo,ruta_archivo,tipo_archivo)
-          `);
+          `)
+          .eq('area_id', cproAreaId);
           return applyCommonFilters(q, f, 'fecha');
         });
       }
@@ -890,7 +894,8 @@
             analistas!actividades_analista_id_fkey(nombre),
             tipos_actividad(nombre),
             actividad_asistentes(personas(nombre_completo,region,determinante))
-          `);
+          `)
+          .eq('area_id', cproAreaId);
           return applyCommonFilters(q, f, 'inicio');
         });
       }
@@ -1003,6 +1008,10 @@
           }
         }
       }
+
+      // Candado adicional: esta vista y su Excel son EXCLUSIVOS de CPRO.
+      followups = followups.filter(x => String(x.area_id || '') === String(cproAreaId));
+      activities = activities.filter(x => String(x.area_id || '') === String(cproAreaId));
 
       const rowsF = followups.map(x => {
         const embedded = (x.seguimiento_personas || [])
@@ -1178,6 +1187,7 @@
 
     const resumen = [
       ['REPORTE','HISTÓRICO GENERAL CPRO'],
+      ['ÁREA','CPRO'],
       ['DÍA',f.date || 'TODOS'],
       ['DETERMINANTE',f.det || 'TODAS'],
       ['CPRO',f.analystId ? f.analystName : 'TODAS'],
